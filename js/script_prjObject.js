@@ -134,9 +134,12 @@ observedEvents.forEach((eventType) => {
 window.addEventListener("resize", (event) => prjManager.handleEvent(event)); // resize
 
 function fetchCircuitData() {
-    fetch('data.json')
+    fetch('https://raw.githubusercontent.com/sys8994/circuitsim/master/data.json')
     .then(response => response.json())
-    .then(data => circuitData=data)
+    .then(data => {
+        prjManager.circuitData = data
+        console.log('circuitData:',prjManager.circuitData)
+    })
     .catch(error => console.error('Error loading JSON:', error));
 }
 fetchCircuitData()
