@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>circuitsim_js</title>    
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="css/styles.css"> <!-- 외부 CSS 연결 -->    
+    <script src="https://cdn.plot.ly/plotly-2.24.2.min.js"></script> <!-- Plotly 라이브러리 -->    
+    <script defer src="js/script_eventManager.js"></script> <!-- 외부 JavaScript 연결 -->
+    <script defer src="js/script_subFunctions.js"></script> <!-- 외부 JavaScript 연결 -->
+    <script defer src="js/script_prjObject.js"></script> <!-- 외부 JavaScript 연결 -->
+    <style>
+        /* 십자 모양 포인터 비활성화 */
+        #canvas .plotly .cursor-crosshair {
+            cursor: default !important;
+        }
+    </style>
+</head><body>
+
+
+
+<div class='container-title'>
+    <div class="sub-container">
+        <div class='title'>SIMPLICS Ver.0.90 :: </div>
+        <div class='title'>Project Test 1</div>
+    </div>
+    <div class="sub-container">
+        <div class='button1 div-option' id='btn-info' tooltip="(F1) Project info. Editor" onclick="elem_toggleHidden(this.id)">Prj. Info.</div>
+        <div class='button1 div-option' id='btn-variable' tooltip="(F2) Variables Editor" onclick="elem_toggleHidden(this.id)">Variables</div>
+        <div class='button1 div-option' id='btn-element' tooltip="(F3) Elements Editor" onclick="elem_toggleHidden(this.id)">Elements</div>
+        <div class='button1 div-option' id='btn-simopt' tooltip="(F4) Simulation Options" onclick="elem_toggleHidden(this.id)">Sim. Opt.</div>
+        <div class='button1' style="width:10px !important;"></div>
+        <div class='button1 div-option' id='btn-save' tooltip="(Ctrl+S) Save Current Project">Save</div>
+        <div class='button1 div-option' id='btn-saveas' tooltip="(Ctrl+Shift+S) Save Current Project As">Save As</div>
+    </div>
+</div>
+
+<div class="container-main">
+    <div class="sub-container-elements">
+        <div class='button1 div-element' id='btn-nodepnt' tooltip="(1) Node Line">Node Line</div>
+        <div class='button1 div-element' id='btn-powersource' tooltip="(2) Port">Port</div>
+        <div class='button1 div-element' id='btn-ground' tooltip="(3) Ground">Ground</div>
+        <div class='button1 div-element' id='btn-resistor' tooltip="(4) Resistor">Resistor</div>
+        <div class='button1 div-element' id='btn-capacitor' tooltip="(5) Capacitor">Capacitor</div>
+        <div class='button1 div-element' id='btn-transistor' tooltip="(6) Transistor">Transistor</div>
+        <div class='button1 div-element' id='btn-nonlin' tooltip="(7) Non-linear">Non-Linear</div>
+        <div class='button1 div-element' id='btn-text' tooltip="(t) Text">Text</div>
+    </div>
+    
+    <div class="sub-container-plot container-clicked" id="canvas"></div>
+
+    <div class="sub-container-opt hidden" id="opt-info">Prj. info.</div>
+    <div class="sub-container-opt hidden" id="opt-variable">Variables  Editor</div>
+    <div class="sub-container-opt hidden" id="opt-element">Elements Editor</div>
+    <div class="sub-container-opt hidden" id="opt-simopt">Sim. Options</div>
+</div>
+
+
+
+</body></html>

@@ -1,0 +1,84 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+.container-title {
+    display:flex;
+    justify-content: space-between; /* 요소를 양쪽 끝에 배치 */
+    align-items: center; /* 세로 정렬 (중앙 정렬) */
+    padding: 10px;
+    padding-left: 20px;
+    padding-right: 20px;
+    background: rgb(220,220,220);
+    width: 100%;
+    box-sizing: border-box; /* padding 포함 크기 계산 */
+    margin: 0px;
+}
+.sub-container {
+    display:flex; 
+    justify-content: start;
+}
+
+
+
+.container-main {
+    display:flex;
+    flex: 1; /* 남은 공간을 모두 차지 */
+    /* overflow-y: auto; */
+    overflow:hidden;
+}
+.sub-container-elements {
+    background-color: rgb(240,240,240);
+    width: 80px;
+    padding: 10px;
+}
+.sub-container-plot {
+    flex:1;
+    margin: 10px;
+    padding: 0px;
+    position: relative; /* For Plotly resizing */
+    border: 1px solid rgb(170, 170, 170); /* 검은색 2px 보더 */
+}
+.sub-container-opt {
+    background-color: rgb(240,240,240);
+    border-left: 1px solid rgba(0,0,0,0.1);
+    width:200px;
+    padding: 10px;
+    flex-shrink: 0; /* Prevent shrinking */
+}
+.container-clicked {
+    border: 1px solid black; /* 검은색 2px 보더 */
+}
+.hidden {
+    display: none; /* 요소를 숨김 */
+}
+
+.btn-clicked {
+    font-weight: bold;
+}
+
+
+.title {
+    font-size: 15px;
+    font-weight: bold;
+    text-align: left;
+    margin: 5px;
+
+}
+.button1 {
+    font-size: 12px;
+    width: 70px;
+    margin: 5px;
+    padding-bottom: 5px;
+    text-align: center;
+    box-sizing: border-box;
+    border-bottom: 2px solid rgba(90,120,240,0);
+    -webkit-user-select: none;
+}
+.button1:hover {
+    cursor: pointer;
+    border-bottom: 2px solid rgb(90,120,240)
+}
