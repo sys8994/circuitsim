@@ -11,7 +11,11 @@ const prjManager = {
         Plotly: Plotly,
     },
     mode: 'normal', // Initial mode
-    element: [], // circuit elements
+    data: {
+        counter: 0,
+        element: {}, // circuit elements 
+        xymap: {}, // XY ID to element mapping
+    },
     uiStatus: {
         dragClicked: false, // Indicates whether the mouse is clicked
         clickedPoint1: [], // Stores the starting point of the drag
@@ -19,9 +23,9 @@ const prjManager = {
         hoverPoint: [], // element hover x,y points
     },
     createElement: {
-        elementName: null,
-        elementXY: null,
-        elementXYN: null,
+        name: null,
+        shape: null,
+        shapeN: null,
         polarity: 0,
         nRotation: 0,
     },
@@ -121,7 +125,6 @@ const prjManager = {
     },
 };
 
-
 // Initialization ================================================================================================================
 // ===============================================================================================================================
 
@@ -143,7 +146,6 @@ function fetchCircuitData() {
     .catch(error => console.error('Error loading JSON:', error));
 }
 fetchCircuitData()
-
 
 
 // plot objects initialization ===================================================================================================

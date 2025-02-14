@@ -82,3 +82,9 @@ body, html {
     cursor: pointer;
     border-bottom: 2px solid rgb(90,120,240)
 }
+
+
+/* hiding cross cursor in plotly */
+#canvas .plotly .cursor-crosshair {
+    cursor: default !important; 
+}

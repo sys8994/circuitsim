@@ -72,12 +72,12 @@ function selectElement(event,prjManager) {
         elementName = event.target.id.replace('btn-','');
     }
 
-    console.log('elementName:',elementName)
-
     // uiData update by clicked circuit element    
-    prjManager.createElement.elementName = elementName;
-    prjManager.createElement.elementXY = prjManager.circuitData.shapeset['xy_'+prjManager.createElement.elementName]
-    prjManager.createElement.elementXYN = prjManager.circuitData.shapeset['xyn_'+prjManager.createElement.elementName]
+    prjManager.createElement.name = elementName;
+    prjManager.createElement.shape = prjManager.circuitData.shapeset['xy_'+prjManager.createElement.name]
+    prjManager.createElement.shapeN = prjManager.circuitData.shapeset['xyn_'+prjManager.createElement.name]
+    prjManager.createElement.polarity = 0;
+    prjManager.createElement.nRotation = 0;
     
     // remove "btn-clicked" class from all buttons
     document.querySelectorAll('.div-element.btn-clicked').forEach((el) => { el.classList.remove('btn-clicked'); });
@@ -116,63 +116,46 @@ function pasteElement(event,prjManager) {
 function hoverElement(event, prjManager) {
     const hoverPoint = prjManager.uiStatus.hoverPoint
     if (event.type === 'keydown') {
-        [X,Y] = hoverPoint
+        XY = hoverPoint
     } else {
-        [X,Y] = sub_roundXY(event,prjManager,deg=2)
-        if (hoverPoint.length != 0 && hoverPoint[0] == X && hoverPoint[1] == Y) {return}
+        XY = sub_roundXY(event,prjManager,deg=2)
+        if (hoverPoint.length != 0 && hoverPoint[0] == XY[0] && hoverPoint[1] == XY[1]) return;
     }
 
-    const shapeXY = prjManager.createElement.elementXY;
-    const shapeXYN = prjManager.createElement.elementXYN;
+    const shape = prjManager.createElement.shape;
+    const shapeN = prjManager.createElement.shapeN;
     const polarity = prjManager.createElement.polarity;
     const nRotation = prjManager.createElement.nRotation;
-    if (shapeXY && shapeXYN) {
-        let shapeXYr = sub_rotateVectors(shapeXY,polarity,nRotation)
-        let hoverX
-        let hoverY
-        if (shapeXY.length == 0) {
-            [hoverX,hoverY] = sub_shapeToXY(shapeXYN, [X,Y])
-        } else if (shapeXYN.length == 0) {
-            [hoverX,hoverY] = sub_shapeToXY(shapeXYr, [X,Y])
-        } else {
-            [hoverX,hoverY] = sub_shapeToXY([[...shapeXYr[0], null, ...shapeXYN[0]],[...shapeXYr[1], null, ...shapeXYN[1]]], [X,Y])
-        }
+    if (shape && shapeN) {
+
+        let hoverXY = sub_shiftShapeMerged(shape, shapeN, XY); 
         targetIndex = data.findIndex(trace => trace.name === 'lineObj_elementCreateNormal')
-        let isValid = sub_validityCheck([X,Y],prjManager)
+        let isValid = sub_validityCheck(prjManager)
         if (isValid) {
-            prjManager.plotObject.Plotly.restyle('canvas', { x: [hoverX], y: [hoverY], 'line.color': 'rgb(190,190,190)'}, targetIndex);
+            lineColor = 'rgb(190,190,190)';
         } else {
-            prjManager.plotObject.Plotly.restyle('canvas', { x: [hoverX], y: [hoverY], 'line.color': 'rgb(255, 112, 112)'}, targetIndex);
+            lineColor = 'rgb(255, 112, 112)';
         }
+        prjManager.plotObject.Plotly.restyle('canvas', { x: [hoverXY[0]], y: [hoverXY[1]], 'line.color': lineColor}, targetIndex);
     }
-    prjManager.uiStatus.hoverPoint = [X,Y]
+    prjManager.uiStatus.hoverPoint = XY
 }
 
 // XXX
 function createElement(event,prjManager) {
 
-    XY = sub_roundXY(event,prjManager,deg=2)
 
     // validity check
-    if (!sub_validityCheck(XY,prjManager)) return
-
-
+    if (!sub_validityCheck(prjManager)) return
 
 
     // register new element 
-    elementObjectArray = sub_createElementObject(XY,prjManager.createElement,prjManager.element)
-    prjManager.element = [...prjManager.element, ...elementObjectArray]
+    elementObjectArray = sub_createElementObject(prjManager)
+    prjManager.data.element = {...prjManager.data.element, ...elementObjectArray}
 
-    // rendering
+    // register new element's pos <-> elementId
 
-
-
-
-
-
-
-
-
+    // all shape rendering
 
 
 
@@ -198,6 +181,7 @@ function createElement(event,prjManager) {
 function rotateElement(event,prjManager) {
     if (prjManager.createElement.nRotation == 3) {prjManager.createElement.nRotation = 0}
     else {prjManager.createElement.nRotation = prjManager.createElement.nRotation + 1;}    
+    prjManager.createElement.shape = sub_rotateVectors(prjManager.createElement.shape);
     // rendering
     hoverElement(event, prjManager)
 }
@@ -205,7 +189,8 @@ function rotateElement(event,prjManager) {
 // XXX
 function switchElement(event,prjManager) {
     if (prjManager.createElement.polarity == 0) {prjManager.createElement.polarity = 1}
-    else {prjManager.createElement.polarity = 0;}    
+    else {prjManager.createElement.polarity = 0;} 
+    prjManager.createElement.shape = sub_flipVectors(prjManager.createElement.shape);   
     // rendering
     hoverElement(event, prjManager)
 }
