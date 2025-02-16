@@ -72,6 +72,9 @@ function sub_createElementObject(prjManager) {
         slave:null,
     };
 
+
+    console.log("elementObj:", elementObj)
+
     // map update
     let mapInfo = {[elementObj.positionId]: elementObj.elementId}
     console.log(mapInfo)

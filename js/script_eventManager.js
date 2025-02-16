@@ -177,9 +177,9 @@ function createElement(event,prjManager) {
     // }
 }
 
-// XXX
 function rotateElement(event,prjManager) {
     // 90deg rotation in clock-wise
+    console.log('rot:',prjManager.createElement)
     prjManager.createElement.rotation = (prjManager.createElement.rotation + 1) % 4;
     prjManager.createElement.terminal = prjManager.createElement.terminal.map(a => (a + 1) % 4);
     prjManager.createElement.shape = sub_rotateVectors(prjManager.createElement.shape);
@@ -187,10 +187,11 @@ function rotateElement(event,prjManager) {
     hoverElement(event, prjManager)
 }
 
-// XXX
 function switchElement(event,prjManager) {
-    if (prjManager.createElement.polarity == 0) {prjManager.createElement.polarity = 1}
-    else {prjManager.createElement.polarity = 0;} 
+    // flip under y-axis (x -> -x)
+    console.log('flip:',prjManager.createElement)
+    prjManager.createElement.polarity = (prjManager.createElement.polarity + 1) % 2;
+    prjManager.createElement.terminal = prjManager.createElement.terminal.map(a => (a === 0 ? 2 : a === 2 ? 0 : a));
     prjManager.createElement.shape = sub_flipVectors(prjManager.createElement.shape);   
     // rendering
     hoverElement(event, prjManager)
