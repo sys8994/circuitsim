@@ -44,8 +44,10 @@ function sub_createElementObject(prjManager) {
     const shape = prjManager.createElement.shape;
     const shapeN = prjManager.createElement.shapeN;
     const shapeMerged = sub_shiftShapeMerged(shape, shapeN, XY);
+    const terminal = prjManager.createElement.terminal;
+    const paraNames = prjManager.circuitData.element[elementName].paraNames;
 
-    prjManager.data.counter += 1;
+    
 
     // circuitdata에서 각 element name 별로 para 정보 및 terminal 정보를 가져오자
     // 그리고 terminal 만큼 for문을 돌려서, slave도 만들어내자. master, slave 각 eid 연결도 다 하고.
@@ -56,6 +58,10 @@ function sub_createElementObject(prjManager) {
     // 고민! slave (node)의 경우 dynamic하게 merge 되고 하는데, 이 경우 eid 처리를 어떻게 하지? 동일한 node를 가리키는 eid list들을 따로 만들어야 하나? 아니면 eid들을 다 수정해야 하나?
 
 
+    let elementObjGroup = {};   
+
+    // main element object
+    prjManager.data.counter += 1; 
     let elementObj = {
         elementId: prjManager.data.counter,
         positionId: [sub_XY2pos(XY)],
@@ -63,14 +69,40 @@ function sub_createElementObject(prjManager) {
         shape: shape,
         shapeN: shapeN,
         shapeMerged: shapeMerged,
-        polarity: prjManager.createElement.shape.polarity,
-        rotation: prjManager.createElement.shape.rotation,
-        terminal:null,
-        para:null,
-        elementStatus:null,
-        master:null,
-        slave:null,
+        polarity: prjManager.createElement.polarity,
+        rotation: prjManager.createElement.rotation,
+        terminal: terminal,
+        paraNames: paraNames,
+        paraValues: null,
+        elementStatus: null,
+        masterId: null,
+        slaveId: null,
     };
+    elementObjGroup[elementObj.elementId] = elementObj;
+
+    // terminal objects (slaves)
+    for (let i = 0; i < terminal.length(); i++) {
+        prjManager.data.counter += 1;
+        let elementObj = {
+            elementId: prjManager.data.counter,
+            positionId: [sub_XY2pos(XY)],
+            name: 'terminal',
+            shape: null,
+            shapeN: null,
+            shapeMerged: null,
+            polarity: null,
+            rotation: null,
+            terminal: null,
+            para:null,
+            elementStatus:null,
+            masterId:null,
+            slaveId:null,
+        };
+
+        elementObjGroup[elementId] = elementObj
+
+      }
+      
 
 
     console.log("elementObj:", elementObj)

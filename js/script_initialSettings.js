@@ -24,10 +24,10 @@ const prjManager = {
     },
     createElement: {
         name: null,
-        shape: null,
-        shapeN: null,
         polarity: 0,
         rotation: 0,
+        shape: null,
+        shapeN: null,
         terminal: null,
     },
     canvasSizeVar: {
