@@ -9,12 +9,17 @@ const prjManager = {
     plotObject: {
         canvas: document.getElementById("canvas"),
         Plotly: Plotly,
+        lineData: [],
     },
     mode: 'normal', // Initial mode
     data: {
-        counter: 0,
+        counterElement: 0,
+        counterNodeGroup: 0,
         element: {}, // circuit elements 
-        xymap: {}, // XY ID to element mapping
+        idMap: {}, // pos ID to element ID mapping
+        typeMap: {}, // pos ID to element type mapping
+        pos2nodeGroup: {},
+        nodeGroup2Id: {},
     },
     uiStatus: {
         dragClicked: false, // Indicates whether the mouse is clicked
@@ -29,6 +34,9 @@ const prjManager = {
         shape: null,
         shapeN: null,
         terminal: null,
+        isValid: true,
+        typeMap: null,
+        node: null,
     },
     canvasSizeVar: {
         pixelsPerUnit: 30, // 1 단위당 픽셀 길이
@@ -80,7 +88,7 @@ const prjManager = {
                 }
                 else if (event.key === 'r') { rotateElement(event,prjManager) }
                 else if (event.key === 's') { switchElement(event,prjManager) }
-                else if (event.key === 'escape') { resetMode(event,prjManager) }
+                else if (event.key === 'Escape') { resetMode(event,prjManager) }
                 else if (['1','2','3','4','5','6','7','8','9','0','t'].includes(event.key)) { selectElement(event, prjManager) } // element selection
                 else if (['F1','F2','F3','F4'].includes(event.key)) { selectOption(event, prjManager) } // element selection
                 else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) { canvasMove(event, prjManager) } // element selection
@@ -121,7 +129,7 @@ const prjManager = {
         if (handler) {
             handler(event);
         } else {
-            console.warn(`No handler for event type: ${event.type} in mode: ${this.mode}`);
+            // console.warn(`No handler for event type: ${event.type} in mode: ${this.mode}`);
         }
     },
 };
@@ -137,16 +145,20 @@ observedEvents.forEach((eventType) => {
 });
 window.addEventListener("resize", (event) => prjManager.handleEvent(event)); // resize
 
-function fetchCircuitData() {
-    fetch('https://raw.githubusercontent.com/sys8994/circuitsim/master/data.json')
-    .then(response => response.json())
-    .then(data => {
-        prjManager.circuitData = data
-        console.log('circuitData:',prjManager.circuitData)
-    })
-    .catch(error => console.error('Error loading JSON:', error));
-}
-fetchCircuitData()
+// load circuit data
+// prjManager.circuitData = circuitData
+
+// function fetchCircuitData() {
+//     fetch('https://raw.githubusercontent.com/sys8994/circuitsim/master/data.json')
+//     .then(response => response.json())
+//     .then(data => {
+//         prjManager.circuitData = data
+//         console.log('circuitData:',prjManager.circuitData)
+//     })
+//     .catch(error => console.error('Error loading JSON:', error));
+// }
+// fetchCircuitData()
+// console.log('circuitData:',circuitData)
 
 
 // plot objects initialization ===================================================================================================
@@ -194,114 +206,49 @@ for (let a = lims0; a <= lims1; a += 2) {
     x_grid.push(a, a, NaN, lims0, lims1, NaN);
     y_grid.push(lims0, lims1, NaN, a, a, NaN);
 }
-const lineObj_grid = {
-    x: x_grid, // x축 범위
-    y: y_grid,    // y축 고정
-    mode: 'lines',
-    line: { color: 'rgb(230,230,230)', width: 0.5, }, // 점선 스타일
-    name: 'lineObj_grid'
-};
 
-const lineObj_gridBoundary = {
-    x: [lims0, lims1, lims1, lims0, lims0], // x축 범위
-    y: [lims0, lims0, lims1, lims1, lims0],    // y축 고정
-    mode: 'lines',
-    line: { color: 'rgb(130,130,130)', width: 1, }, // 점선 스타일
-    name: 'lineObj_gridBoundary'
-};
+const lineObjGroups = {
+    grid: { x:x_grid, y:y_grid, line: { color: 'rgb(230,230,230)', width: 0.5 }, },
+    gridBoundary: { x: [lims0, lims1, lims1, lims0, lims0], y: [lims0, lims0, lims1, lims1, lims0], line: { color: 'rgb(130,130,130)', width: 1.0 }, },
+    elementSelect: { line: { color: 'rgb(28, 0, 213)', width: 3.0 }, },
+    elementNormal: { line: { color: 'rgb(40,40,40)', width: 1.5 }, },
+    elementError: { line: { color: 'rgb(228, 7, 51)', width: 2.0 }, },
+    elementNoPara: { line: { color: 'rgb(238, 227, 28)', width: 1.5 }, },
+    elementHover: { line: { color: 'rgb(90, 152, 146)', width: 1.5 }, },
+    terminalSelect: { mode:'marker', marker: { color: 'rgb(28, 0, 213)', size: 8.0 }, },
+    terminalNormal: { mode:'marker', marker: { color: 'rgb(40,40,40)', size: 4.0 }, },
+    terminalError: { mode:'marker', marker: { color: 'rgb(228, 7, 51)', size: 5.5 }, },
+    terminalNoPara: { mode:'marker', marker: { color: 'rgb(238, 227, 28)', size: 4.0 }, },
+    terminalHover: { mode:'marker', marker: { color: 'rgb(90, 152, 146)', size: 4.0 }, },
+    elementCreateNormal: { line: { color: 'rgb(190,190,190)', width: 1.2, }, },
+    drag: {type: "scatter", line: { color: "rgba(112, 112, 112, 0.5)", width: 0.5 }, fill: "toself", fillcolor: "rgba(216, 216, 216, 0.5)", },
+}
 
-// element selected
-const lineObj_elementSelect = {
-    x: [],
-    y: [],
-    mode: 'lines',
-    line: { color: 'rgb(28, 0, 213)', width: 3.0 },
-    marker: { size: 10, color: 'blue' },
-    name: 'lineObj_elementSelect'
-};
+for (const name in lineObjGroups) {
+    let lineObj = {
+        x: [], 
+        y: [], 
+        mode: 'lines',
+        hoverinfo: 'none',
+        name: name,
+    };
+    let lineInfo = lineObjGroups[name];
+    for (const info in lineInfo) {
+        lineObj[info] = lineInfo[info];
+    }
+    prjManager.plotObject.lineData.push(lineObj);
+}
 
-// element normal
-const lineObj_elementNormal = {
-    x: [],
-    y: [],
-    mode: 'lines',
-    line: { color: 'rgb(40,40,40)', width: 1.5 },
-    marker: { size: 10, color: 'blue' },
-    name: 'lineObj_elementNormal'
-};
-
-// element with error
-const lineObj_elementError = {
-    x: [],
-    y: [],
-    mode: 'lines',
-    line: { color: 'rgb(228, 7, 51)', width: 2.0 },
-    marker: { size: 10, color: 'blue' },
-    name: 'lineObj_elementError'
-};
-
-// element with no paramaters
-const lineObj_elementNopara = {
-    x: [],
-    y: [],
-    mode: 'lines',
-    line: { color: 'rgb(228, 167, 0)', width: 1.5 },
-    marker: { size: 10, color: 'blue' },
-    name: 'lineObj_elementNopara'
-};
-
-// element with mouse hover
-const lineObj_elementHover = {
-    x: [],
-    y: [],
-    mode: 'lines',
-    line: { color: 'rgb(90, 152, 146)', width: 1.5 },
-    marker: { size: 10, color: 'blue' },
-    name: 'lineObj_elementHover'
-};
-
-// hover
-const lineObj_elementCreateNormal = {
-    x: [], // 초기 x 데이터 (비어 있음)
-    y: [], // 초기 y 데이터 (비어 있음)
-    mode: 'lines',
-    line: { color: 'rgb(190,190,190)', width: 1.2, dash: 'solid' }, // 스타일 정의
-    name: 'lineObj_elementCreateNormal',
-    hoverinfo: 'none'
-};
-
-// drag
-const lineObj_drag = {
-    type: "scatter",
-    mode: 'lines',
-    x: [], 
-    y: [], 
-    fill: "toself", // filling inner area
-    fillcolor: "rgba(216, 216, 216, 0.5)", 
-    line: { color: "rgba(112, 112, 112, 0.5)", width:0.5},
-    name: 'lineObj_drag',
-    hoverinfo: 'none', 
-  };
-
-// Plot data list
-const data = [lineObj_grid, lineObj_gridBoundary, lineObj_elementSelect, lineObj_elementNormal, lineObj_elementError, lineObj_elementNopara, lineObj_elementHover, lineObj_elementCreateNormal, lineObj_drag];
 
 // plotly initialization
-function initiatePlotly(data, layout, config, prjManager) {
+function initiatePlotly(layout, config, prjManager) {
     const { canvas, Plotly } = prjManager.plotObject; // Access Plotly and canvas via prjManager.plotObject
-
-    if (!canvas) {
-        console.error("Canvas element not found!");
-        return;
-    }
-
-    Plotly.newPlot(canvas, data, layout, config);
+    Plotly.newPlot(canvas, prjManager.plotObject.lineData, layout, config);
     Plotly.relayout('canvas', {
         'xaxis.range': [(lims0+lims1)/2-20,(lims0+lims1)/2+20,],
         'yaxis.range': [(lims0+lims1)/2-20,(lims0+lims1)/2+20,],
     });
-    console.log("Plot created on canvas");
 }
-initiatePlotly(data, layout, config, prjManager)
+initiatePlotly(layout, config, prjManager)
 
 canvasResize([],prjManager)

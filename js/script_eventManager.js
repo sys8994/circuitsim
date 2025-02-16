@@ -2,13 +2,11 @@
 // External event functions ======================================================================================================
 // ===============================================================================================================================
 
-
+// XXX : do with drag
 function canvasDrag(event,prjManager,opt) {
-    const canvas = prjManager.plotObject.canvas;
     if (opt=='down') {
 
         let [X1,Y1] = sub_roundXY(event,prjManager,deg=0)
-
         if (!X1) return;
     
         prjManager.uiStatus.dragClicked = true; // Activate drag mode
@@ -20,7 +18,6 @@ function canvasDrag(event,prjManager,opt) {
         let [X1,Y1] = prjManager.uiStatus.clickedPoint1 
         let [X2,Y2] = sub_roundXY(event,prjManager,deg=0,bound=false) // unbounded mouse drag
         prjManager.uiStatus.clickedPoint2 = [X2,Y2]
-        // console.log(`Draging: Current position `,X2,Y2)
         
         Xmin = Math.min(X1,X2);
         Xmax = Math.max(X1,X2);
@@ -28,8 +25,7 @@ function canvasDrag(event,prjManager,opt) {
         Ymax = Math.max(Y1,Y2);
 
         // drag object range change
-        targetIndex = data.findIndex(trace => trace.name === 'lineObj_drag')
-        prjManager.plotObject.Plotly.restyle('canvas',{ x: [[Xmin,Xmax,Xmax,Xmin,Xmin]], y: [[Ymin,Ymin,Ymax,Ymax,Ymin]] }, targetIndex);
+        sub_modifyLine(prjManager,'drag', { x: [[Xmin,Xmax,Xmax,Xmin,Xmin]], y: [[Ymin,Ymin,Ymax,Ymax,Ymin]] });
         
     } else {
         let [X1,Y1] = prjManager.uiStatus.clickedPoint1 
@@ -45,59 +41,66 @@ function canvasDrag(event,prjManager,opt) {
         Ymax = Math.max(Y1,Y2);
     
         // Perform action on drag
-        targetIndex = data.findIndex(trace => trace.name === 'lineObj_drag')
-    
-        prjManager.plotObject.Plotly.restyle('canvas',{ x: [[]], y: [[]] }, targetIndex);
+        sub_modifyLine(prjManager, 'drag', { x: [[]], y: [[]] });
         
-        
-        console.log('lets do something drag!!')
+        // drag
+        //
+        //               
     }
 }
 
+
+
+hotkeyObj = {
+    '1':'nodeline',
+    '2':'source',
+    '3':'ground',
+    '4':'resistor',
+    '5':'capacitor',
+    '6':'nmos',
+    '7':'pmos',
+    '8':'ots',
+    '9':'mtj',
+    '0':'nonlin',
+    't':'text',
+}
 function selectElement(event,prjManager) {
 
     let elementName
     if (event.type=='keydown') {
-        switch (event.key) {
-            case '1': elementName = 'nodepnt'; break;
-            case '2': elementName = 'source'; break;
-            case '3': elementName = 'ground'; break;
-            case '4': elementName = 'resistor'; break;
-            case '5': elementName = 'capacitor'; break;
-            case '6': elementName = 'nmos'; break;
-            case '7': elementName = 'pmon'; break;
-            case '8': elementName = 'ots'; break;
-            case '9': elementName = 'mtj'; break;
-            case '0': elementName = 'nonlin'; break;
-            case 't': elementName = 'text'; break;
-            default: return;
-        }
+        if (!elementName in hotkeyObj) return;
+        elementName = hotkeyObj[event.key]
     } else if (event.type ==='mousedown') {
         elementName = event.target.id.replace('btn-','');
     }
 
     // uiData update by clicked circuit element    
     prjManager.createElement.name = elementName;
-
-    const elementDefault = prjManager.circuitData.element[elementName]
-    prjManager.createElement.shape = elementDefault.shape
-    prjManager.createElement.shapeN = elementDefault.shapeN
-    prjManager.createElement.polarity = elementDefault.polarity
-    prjManager.createElement.rotation = elementDefault.rotation
-    prjManager.createElement.terminal = elementDefault.terminal
+    if (elementName == 'nodeline') { // nodeline
+        prjManager.createElement.shape = prjManager.circuitData.shapeset.shape_nodepnt;
+        prjManager.createElement.node = {
+            isClicked: false,
+            startingXY: [],
+            endingXY: [],
+        }
+    } else { // normal element
+        const elementDefault = prjManager.circuitData.element[elementName]
+        prjManager.createElement.shape = elementDefault.shape
+        prjManager.createElement.shapeN = elementDefault.shapeN
+        prjManager.createElement.polarity = elementDefault.polarity
+        prjManager.createElement.rotation = elementDefault.rotation
+        prjManager.createElement.terminal = elementDefault.terminal
+    }
     
-    // remove "btn-clicked" class from all buttons
-    document.querySelectorAll('.div-element.btn-clicked').forEach((el) => { el.classList.remove('btn-clicked'); });
-    
-    // set "btn-clicked" class for the licked button
+    // html control : remove / set "btn-clicked" class 
+    document.querySelectorAll('.div-element.btn-clicked').forEach((el) => { el.classList.remove('btn-clicked'); });    
     document.getElementById('btn-'+elementName).classList.add('btn-clicked');
 
     // set mode to "create mode"
     prjManager.setMode('create')
 
-    // rendering
+    // hover rendering
     hoverElement(event,prjManager)
-
 }
 
 // XXX
@@ -120,7 +123,10 @@ function pasteElement(event,prjManager) {
 
 }
 
+// XXX highlight
 function hoverElement(event, prjManager) {
+
+    // activate when XY grid changes 
     const hoverPoint = prjManager.uiStatus.hoverPoint
     if (event.type === 'keydown') {
         XY = hoverPoint
@@ -128,72 +134,154 @@ function hoverElement(event, prjManager) {
         XY = sub_roundXY(event,prjManager,deg=2)
         if (hoverPoint.length != 0 && hoverPoint[0] == XY[0] && hoverPoint[1] == XY[1]) return;
     }
-
-    const shape = prjManager.createElement.shape;
-    const shapeN = prjManager.createElement.shapeN;
-    if (shape && shapeN) {
-        let hoverXY = sub_shiftShapeMerged(shape, shapeN, XY); 
-        targetIndex = data.findIndex(trace => trace.name === 'lineObj_elementCreateNormal')
-        let isValid = sub_validityCheck(prjManager)
-        lineColor = isValid ? 'rgb(190,190,190)' : 'rgb(255, 112, 112)';
-        prjManager.plotObject.Plotly.restyle('canvas', { x: [hoverXY[0]], y: [hoverXY[1]], 'line.color': lineColor}, targetIndex);
-    }
     prjManager.uiStatus.hoverPoint = XY
-}
 
-// XXX
-function createElement(event,prjManager) {
+
+    let hoverShape;
+    let typeMap = {};
+    if (prjManager.createElement.name === 'nodeline') { // nodeline
+        const shapeCircle = prjManager.createElement.shape;
+        if (!prjManager.createElement.node.isClicked) { // starting point
+            let hoverCircle = sub_shiftShape(shapeCircle, XY);
+            hoverShape = hoverCircle;
+            typeMap[sub_XY2pos(XY)] = 'node'
+
+        } else { // ending point
+            const startingXY = prjManager.createElement.node.startingXY;
+
+            let [endingXY, posIds] = sub_generateNodeLine(startingXY, event, prjManager);
+            const shapeLineSegment = [[startingXY[0],endingXY[0]],[startingXY[1],endingXY[1]]];  
+            let hoverCircle = sub_shiftShape(shapeCircle, endingXY);
+            hoverShape = sub_concatXYs(hoverCircle,shapeLineSegment); // single line segment
+            prjManager.createElement.node.shape = shapeLineSegment;
+            prjManager.createElement.node.posIds = posIds;
+
+            // typeMap obj
+            posIds.forEach(key => typeMap[key] = 'node');
+        }
+    } else { // normal element
+        const shape = prjManager.createElement.shape;
+        const shapeN = prjManager.createElement.shapeN;
+        hoverShape = sub_shiftShapeMerged(shape, shapeN, XY);
+
+        // typeMap obj
+        const terminal = prjManager.createElement.terminal;
+        const terminalShifted = sub_shiftShape(terminal,XY);
+        const posIdsTerminal = sub_XY2pos(terminalShifted);
+        typeMap[sub_XY2pos(XY)] = 'element'
+        posIdsTerminal.forEach(key => typeMap[key] = 'terminal');
+    }   
+    prjManager.createElement.typeMap = typeMap;
 
 
     // validity check
-    if (!sub_validityCheck(prjManager)) return
+    let isValid = sub_validityCheck(prjManager)
+    prjManager.createElement.isValid = isValid; 
+    lineColor = isValid ? 'rgb(190,190,190)' : 'rgb(255, 112, 112)';
 
+    // element rendering
+    sub_modifyLine(prjManager, 'elementCreateNormal', { x: [hoverShape[0]], y: [hoverShape[1]], 'line.color': lineColor});
 
-    // register new element 
-    elementObjectArray = sub_createElementObject(prjManager)
-    prjManager.data.element = {...prjManager.data.element, ...elementObjectArray}
-
-    // register new element's pos <-> elementId
-
-    // all shape rendering
-
-
-
+    // relevant element rendering (highlight for nodelines)
+    // ctrl or not
+    // 1. starting : node인 경우 해당 node를 highlight
+    // 2. ending : node인 경우 해당 node를 highlight
+    // 3. ctrl : starting - ending 사이에 node인 경우 해당 node들을 highlight
+    //
+    //
 
     
-    // if (!ui_data['selected_element']) return; // 선택된 element가 없으면 동작하지 않음
-    // const shape = ui_data['selected_element_xy'];
-    // if (shape) {
-    //     targetIndex = data.findIndex(trace => trace.name === 'dataline')
-    //     const currentX = plotElement.data[targetIndex].x; // 기존 x 데이터
-    //     const currentY = plotElement.data[targetIndex].y; // 기존 y 데이터
+    
+}
 
-    //     const [compX,compY] = sub_shapeToXY(shape, event)
-    //     const updatedX = currentX.concat(compX);
-    //     const updatedY = currentY.concat(compY);
+// XXX : nodeline 완성 필요
+function createElement(event,prjManager) {
 
-    //     // 데이터 업데이트
-    //     Plotly.restyle('canvas', { x: [updatedX], y: [updatedY] }, targetIndex);
-    // }
+    // validity check
+    if (!prjManager.createElement.isValid) return
+
+    // nodeline
+    const isNodeline = prjManager.createElement.name === 'nodeline'
+    if (isNodeline) {
+        if (!prjManager.createElement.node.isClicked) {
+            prjManager.createElement.node.startingXY = prjManager.uiStatus.hoverPoint;
+            prjManager.createElement.node.isClicked = true;
+            return; 
+        } else {
+            prjManager.createElement.node.isClicked = false;
+            prjManager.createElement.node.isCtrl = event.CtrlKey;
+        }
+    }
+
+
+    // register new element & map
+    if (isNodeline) sub_createNodeObject(prjManager);
+    else sub_createElementObject(prjManager);
+
+    // graph obj rendering
+    let elementNormal = [[],[]];
+    let elementNoPara = [[],[]];
+    let elementError = [[],[]];
+    let terminalNormal = [[],[]];
+    let terminalError = [[],[]];
+    // let polarityelementNormal = [[],[]];
+    // let polarityelementNoPara = [[],[]];
+    // let polarityelementError = [[],[]];
+
+
+    let elementsObj = prjManager.data.element;
+    for (const elementId in elementsObj) {
+        if (!elementsObj.hasOwnProperty(elementId)) continue;        
+        let element = elementsObj[elementId];
+        if (element.name == 'terminal') { // terminal : scatter
+            if (element.elementStatus == 'normal') {
+                terminalNormal = sub_concatXYs(terminalNormal,element.shapeMerged);
+            } else if (element.elementStatus == 'error') {
+                terminalError = sub_concatXYs(terminalError,element.shapeMerged);
+            }
+        } else { // main element shape line, polarity line
+            if (element.elementStatus == 'normal') {
+                elementNormal = sub_concatXYs(elementNormal,element.shapeMerged);
+            } else if (element.elementStatus == 'error') {
+                elementError = sub_concatXYs(elementError,element.shapeMerged);
+            } else if (element.elementStatus == 'nopara') {
+                elementNoPara = sub_concatXYs(elementNoPara,element.shapeMerged);
+            }
+        }
+    }
+    
+    sub_modifyLine(prjManager,'elementNormal',elementNormal)
+    sub_modifyLine(prjManager,'elementNoPara',elementNoPara)
+    sub_modifyLine(prjManager,'elementError',elementError)
+    sub_modifyLine(prjManager,'terminalNormal',terminalNormal)
+    sub_modifyLine(prjManager,'terminalError',terminalError)
+
+    // hover rendering
+    hoverElement(event,prjManager) 
+
+    // delca calc for undo/redo
+
 }
 
 function rotateElement(event,prjManager) {
-    if (prjManager.createElement.name == 'text') return;
+    let elementName = prjManager.createElement.name;
+    if (elementName === 'text' || elementName === 'nodeline') return;
     // 90deg rotation in clock-wise
     prjManager.createElement.rotation = (prjManager.createElement.rotation + 1) % 4;
-    prjManager.createElement.terminal = prjManager.createElement.terminal.map(a => (a + 1) % 4);
     prjManager.createElement.shape = sub_rotateVectors(prjManager.createElement.shape);
-    // rendering
+    prjManager.createElement.terminal = sub_rotateVectors(prjManager.createElement.terminal);
+    // hover rendering
     hoverElement(event, prjManager)
 }
 
 function switchElement(event,prjManager) {
-    if (prjManager.createElement.name == 'text') return;
+    let elementName = prjManager.createElement.name;
+    if (elementName === 'text' || elementName === 'nodeline') return;
     // flip under y-axis (x -> -x)
     prjManager.createElement.polarity = (prjManager.createElement.polarity + 1) % 2;
-    prjManager.createElement.terminal = prjManager.createElement.terminal.map(a => (a === 0 ? 2 : a === 2 ? 0 : a));
     prjManager.createElement.shape = sub_flipVectors(prjManager.createElement.shape);   
-    // rendering
+    prjManager.createElement.terminal = sub_flipVectors(prjManager.createElement.terminal);
+    // hover rendering
     hoverElement(event, prjManager)
 }
 
@@ -204,7 +292,19 @@ function saveProject(event,prjManager) {
 
 // XXX
 function resetMode(event,prjManager) {
-
+    prjManager.mode = 'normal';
+    prjManager.createElement = {
+        name: null,
+        polarity: 0,
+        rotation: 0,
+        shape: null,
+        shapeN: null,
+        terminal: null,
+        node: null,
+        isValid: true,
+        typeMap: null,
+    },
+    sub_modifyLine(prjManager,'elementCreateNormal',[]);
 }
 
 function canvasResize(_, prjManager) {

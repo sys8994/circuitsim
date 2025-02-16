@@ -161,7 +161,10 @@
             ],
             "polarity": 0,
             "rotation": 0,
-            "terminal": [2],
+            "terminal": [
+                2,
+                0
+            ],
             "paraName": [
                 "Time (ns)",
                 "Voltage (V)"
@@ -199,7 +202,10 @@
             "shapeN": [],
             "polarity": 0,
             "rotation": 0,
-            "terminal": [1],
+            "terminal": [
+                0,
+                2
+            ],
             "paraName": []
         },
         "resistor": {
@@ -243,8 +249,14 @@
             "polarity": 0,
             "rotation": 0,
             "terminal": [
-                0,
-                2
+                [
+                    -2,
+                    2
+                ],
+                [
+                    0,
+                    0
+                ]
             ],
             "paraName": [
                 "Resistance (Ohm)"
@@ -283,8 +295,14 @@
             "polarity": 0,
             "rotation": 0,
             "terminal": [
-                0,
-                2
+                [
+                    -2,
+                    2
+                ],
+                [
+                    0,
+                    0
+                ]
             ],
             "paraName": [
                 "Capacitance (fF)"
@@ -325,9 +343,16 @@
             "polarity": 0,
             "rotation": 0,
             "terminal": [
-                0,
-                2,
-                1
+                [
+                    -2,
+                    0,
+                    2
+                ],
+                [
+                    0,
+                    2,
+                    0
+                ]
             ],
             "paraName": [
                 "Kn (A/V^2)",
@@ -415,9 +440,16 @@
             "polarity": 0,
             "rotation": 0,
             "terminal": [
-                0,
-                2,
-                1
+                [
+                    -2,
+                    0,
+                    2
+                ],
+                [
+                    0,
+                    2,
+                    0
+                ]
             ],
             "paraName": [
                 "Kn (A/V^2)",
@@ -482,8 +514,14 @@
             "polarity": 0,
             "rotation": 0,
             "terminal": [
-                0,
-                1
+                [
+                    -2,
+                    2
+                ],
+                [
+                    0,
+                    0
+                ]
             ],
             "paraName": [
                 "Voltage (V)",
@@ -766,8 +804,14 @@
             "polarity": 0,
             "rotation": 0,
             "terminal": [
-                0,
-                1
+                [
+                    -2,
+                    2
+                ],
+                [
+                    0,
+                    0
+                ]
             ],
             "paraName": [
                 "STS (1/V)",
@@ -1013,8 +1057,14 @@
             "polarity": 0,
             "rotation": 0,
             "terminal": [
-                0,
-                1
+                [
+                    -2,
+                    2
+                ],
+                [
+                    0,
+                    0
+                ]
             ],
             "paraName": [
                 "Type (1:Rp, 2:Rap)",
