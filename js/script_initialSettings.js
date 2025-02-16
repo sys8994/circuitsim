@@ -27,7 +27,8 @@ const prjManager = {
         shape: null,
         shapeN: null,
         polarity: 0,
-        nRotation: 0,
+        rotation: 0,
+        terminal: null,
     },
     canvasSizeVar: {
         pixelsPerUnit: 30, // 1 단위당 픽셀 길이

@@ -39,6 +39,7 @@ function sub_validityCheck(prjManager) {
 function sub_createElementObject(prjManager) {
 
     const elementName = prjManager.createElement.name;
+    const elementDefault = prjManager.circuitData.element[elementName]
     const XY = prjManager.uiStatus.hoverPoint;
     const shape = prjManager.createElement.shape;
     const shapeN = prjManager.createElement.shapeN;
@@ -46,8 +47,8 @@ function sub_createElementObject(prjManager) {
 
     prjManager.data.counter += 1;
 
-    // circuitdata에서 각 element name 별로 para 정보 및 nterminal 정보를 가져오자
-    // 그리고 nterminal 만큼 for문을 돌려서, slave도 만들어내자. master, slave 각 eid 연결도 다 하고.
+    // circuitdata에서 각 element name 별로 para 정보 및 terminal 정보를 가져오자
+    // 그리고 terminal 만큼 for문을 돌려서, slave도 만들어내자. master, slave 각 eid 연결도 다 하고.
     // 그래서 master + slave 전부 합한 dict를 반환하자.
     // 그런다음 status에 맞게 circuit 그림들을 rendering 하자. (이건 이 함수 말고 밖에서)
     // 또한, 빠르게 색인 가능한 XY2eid(name) map도 만들자.
@@ -63,8 +64,8 @@ function sub_createElementObject(prjManager) {
         shapeN: shapeN,
         shapeMerged: shapeMerged,
         polarity: prjManager.createElement.shape.polarity,
-        nRotation: prjManager.createElement.shape.nRotation,
-        nTerminal:null,
+        rotation: prjManager.createElement.shape.rotation,
+        terminal:null,
         para:null,
         elementStatus:null,
         master:null,
@@ -166,15 +167,15 @@ function sub_shiftShape(shape, offset) {
 }
 
 
-// function sub_rotateVectors(shapeXY, polarity, nRotation) {
+// function sub_rotateVectors(shapeXY, polarity, rotation) {
 //     let [X,Y] = shapeXY
 //     if (polarity == 1) { X = X.map(num => -num)}
-//     if (nRotation == 0) {
+//     if (rotation == 0) {
 //         return [X,Y]}
 //     else {
-//         if (nRotation == 1) { a=0; b=1; c=-1; d=0; }
-//         else if (nRotation == 2) { a=-1; b=0; c=0; d=-1; }
-//         else if (nRotation == 3) { a=0; b=-1; c=1; d=0; }
+//         if (rotation == 1) { a=0; b=1; c=-1; d=0; }
+//         else if (rotation == 2) { a=-1; b=0; c=0; d=-1; }
+//         else if (rotation == 3) { a=0; b=-1; c=1; d=0; }
 //         const Xr = X.map((x, i) => x === null || Y[i] === null ? null : a * x + b * Y[i]);
 //         const Yr = Y.map((y, i) => X[i] === null || y === null ? null : c * X[i] + d * y);
 //         return [Xr, Yr];

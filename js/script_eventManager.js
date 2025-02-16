@@ -60,11 +60,15 @@ function selectElement(event,prjManager) {
     if (event.type=='keydown') {
         switch (event.key) {
             case '1': elementName = 'nodepnt'; break;
-            case '2': elementName = 'powersource'; break;
+            case '2': elementName = 'source'; break;
             case '3': elementName = 'ground'; break;
             case '4': elementName = 'resistor'; break;
             case '5': elementName = 'capacitor'; break;
-            case '6': elementName = 'transistor'; break;
+            case '6': elementName = 'nmos'; break;
+            case '7': elementName = 'pmon'; break;
+            case '8': elementName = 'ots'; break;
+            case '9': elementName = 'mtj'; break;
+            case '0': elementName = 'nonlin'; break;
             case 't': elementName = 'text'; break;
             default: return;
         }
@@ -75,14 +79,12 @@ function selectElement(event,prjManager) {
     // uiData update by clicked circuit element    
     prjManager.createElement.name = elementName;
 
-    console.log('elementName:',elementName)
-    console.log('prjManager.circuitData.element:',prjManager.circuitData.element)
-
     const elementDefault = prjManager.circuitData.element[elementName]
     prjManager.createElement.shape = elementDefault.shape
     prjManager.createElement.shapeN = elementDefault.shapeN
     prjManager.createElement.polarity = elementDefault.polarity
-    prjManager.createElement.nRotation = elementDefault.nRotation
+    prjManager.createElement.rotation = elementDefault.rotation
+    prjManager.createElement.terminal = elementDefault.terminal
     
     // remove "btn-clicked" class from all buttons
     document.querySelectorAll('.div-element.btn-clicked').forEach((el) => { el.classList.remove('btn-clicked'); });
@@ -129,18 +131,11 @@ function hoverElement(event, prjManager) {
 
     const shape = prjManager.createElement.shape;
     const shapeN = prjManager.createElement.shapeN;
-    const polarity = prjManager.createElement.polarity;
-    const nRotation = prjManager.createElement.nRotation;
     if (shape && shapeN) {
-
         let hoverXY = sub_shiftShapeMerged(shape, shapeN, XY); 
         targetIndex = data.findIndex(trace => trace.name === 'lineObj_elementCreateNormal')
         let isValid = sub_validityCheck(prjManager)
-        if (isValid) {
-            lineColor = 'rgb(190,190,190)';
-        } else {
-            lineColor = 'rgb(255, 112, 112)';
-        }
+        lineColor = isValid ? 'rgb(190,190,190)' : 'rgb(255, 112, 112)';
         prjManager.plotObject.Plotly.restyle('canvas', { x: [hoverXY[0]], y: [hoverXY[1]], 'line.color': lineColor}, targetIndex);
     }
     prjManager.uiStatus.hoverPoint = XY
@@ -184,8 +179,9 @@ function createElement(event,prjManager) {
 
 // XXX
 function rotateElement(event,prjManager) {
-    if (prjManager.createElement.nRotation == 3) {prjManager.createElement.nRotation = 0}
-    else {prjManager.createElement.nRotation = prjManager.createElement.nRotation + 1;}    
+    // 90deg rotation in clock-wise
+    prjManager.createElement.rotation = (prjManager.createElement.rotation + 1) % 4;
+    prjManager.createElement.terminal = prjManager.createElement.terminal.map(a => (a + 1) % 4);
     prjManager.createElement.shape = sub_rotateVectors(prjManager.createElement.shape);
     // rendering
     hoverElement(event, prjManager)
