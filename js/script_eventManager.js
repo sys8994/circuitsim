@@ -74,10 +74,15 @@ function selectElement(event,prjManager) {
 
     // uiData update by clicked circuit element    
     prjManager.createElement.name = elementName;
-    prjManager.createElement.shape = prjManager.circuitData.shapeset['xy_'+prjManager.createElement.name]
-    prjManager.createElement.shapeN = prjManager.circuitData.shapeset['xyn_'+prjManager.createElement.name]
-    prjManager.createElement.polarity = 0;
-    prjManager.createElement.nRotation = 0;
+
+    console.log('elementName:',elementName)
+    console.log('prjManager.circuitData.element:',prjManager.circuitData.element)
+
+    const elementDefault = prjManager.circuitData.element[elementName]
+    prjManager.createElement.shape = elementDefault.shape
+    prjManager.createElement.shapeN = elementDefault.shapeN
+    prjManager.createElement.polarity = elementDefault.polarity
+    prjManager.createElement.nRotation = elementDefault.nRotation
     
     // remove "btn-clicked" class from all buttons
     document.querySelectorAll('.div-element.btn-clicked').forEach((el) => { el.classList.remove('btn-clicked'); });
