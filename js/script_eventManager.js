@@ -143,6 +143,14 @@ function pasteElement(event,prjManager) {
 // XXX highlight
 function hoverElement(event, prjManager,isRendering=false) {
 
+    //////// 이거 전면수정하자. copy paste도 커버할 수 있도록.
+    // 일단 select Element 또는 select Paste mode가 되면, elementGroups, nodeGroups를 createElement에다 임시객체로 옮기고
+    // hoverElement에서는 이 임시객체를 다루는 일만 하자.
+    // xy offset 주고, validity check 하고, related node highlight (신설) 하고.
+    // rotate, switch도 얘네들을 다 커버할 수 있도록 수정하자.
+    // 그리고 createElement를 누르면, 임시 객체를 그냥 실제 객체로 옮겨서 등록하는 일만 하면 되겠지. 물론 nodegroup은 다시 계산해야겠지만.
+    // 근데 그 조차도 이미 node hover 시 related node highlight에 다 있음.
+
     // activate when XY grid changes 
     const hoverPoint = prjManager.uiStatus.hoverPoint
     const hoverPointContinuous = prjManager.uiStatus.hoverPointContinuous
