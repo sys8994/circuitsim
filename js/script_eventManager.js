@@ -2,6 +2,23 @@
 // External event functions ======================================================================================================
 // ===============================================================================================================================
 
+
+
+function setCtrlStatus(event, prjManager,option) {
+    if (option === 'press') {
+        prjManager.uiStatus.isCtrl = true;
+    } else {
+        prjManager.uiStatus.isCtrl = false;
+    }
+    console.log('ctrl pressed!!!!!!', prjManager.uiStatus.isCtrl)
+
+
+    if (prjManager.mode === 'create') hoverElement(event,prjManager,isRendering=true);
+}
+
+
+
+
 // XXX : do with drag
 function canvasDrag(event,prjManager,opt) {
     if (opt=='down') {
@@ -100,7 +117,7 @@ function selectElement(event,prjManager) {
     prjManager.setMode('create')
 
     // hover rendering
-    hoverElement(event,prjManager)
+    hoverElement(event,prjManager,isRendering=true)
 }
 
 // XXX
@@ -124,32 +141,35 @@ function pasteElement(event,prjManager) {
 }
 
 // XXX highlight
-function hoverElement(event, prjManager) {
+function hoverElement(event, prjManager,isRendering=false) {
 
     // activate when XY grid changes 
     const hoverPoint = prjManager.uiStatus.hoverPoint
-    if (event.type === 'keydown') {
+    const hoverPointContinuous = prjManager.uiStatus.hoverPointContinuous
+    if (isRendering) { // element select by hotkey
         XY = hoverPoint
+        XYContinuous = hoverPointContinuous
     } else {
         XY = sub_roundXY(event,prjManager,deg=2)
         if (hoverPoint.length != 0 && hoverPoint[0] == XY[0] && hoverPoint[1] == XY[1]) return;
+        XYContinuous = sub_roundXY(event,prjManager,deg=0)
     }
     prjManager.uiStatus.hoverPoint = XY
 
-
-    let hoverShape;
+    let hoverShape = [];
     let typeMap = {};
     if (prjManager.createElement.name === 'nodeline') { // nodeline
+
         const shapeCircle = prjManager.createElement.shape;
         if (!prjManager.createElement.node.isClicked) { // starting point
             let hoverCircle = sub_shiftShape(shapeCircle, XY);
             hoverShape = hoverCircle;
-            typeMap[sub_XY2pos(XY)] = 'node'
+            typeMap[sub_XY2pos(XY)] = {elementType:'node', positionType:'edge'}
 
         } else { // ending point
             const startingXY = prjManager.createElement.node.startingXY;
 
-            let [endingXY, posIds] = sub_generateNodeLine(startingXY, event, prjManager);
+            let [endingXY, posIds] = sub_generateNodeLine(startingXY, XY, XYContinuous, prjManager);
             const shapeLineSegment = [[startingXY[0],endingXY[0]],[startingXY[1],endingXY[1]]];  
             let hoverCircle = sub_shiftShape(shapeCircle, endingXY);
             hoverShape = sub_concatXYs(hoverCircle,shapeLineSegment); // single line segment
@@ -157,7 +177,9 @@ function hoverElement(event, prjManager) {
             prjManager.createElement.node.posIds = posIds;
 
             // typeMap obj
-            posIds.forEach(key => typeMap[key] = 'node');
+            posIds.forEach(key => typeMap[key] = {elementType:'node', positionType:'body'});
+            typeMap[sub_XY2pos(startingXY)] = {elementType:'node', positionType:'edge'};
+            typeMap[sub_XY2pos(endingXY)] = {elementType:'node', positionType:'edge'};
         }
     } else { // normal element
         const shape = prjManager.createElement.shape;
@@ -168,10 +190,12 @@ function hoverElement(event, prjManager) {
         const terminal = prjManager.createElement.terminal;
         const terminalShifted = sub_shiftShape(terminal,XY);
         const posIdsTerminal = sub_XY2pos(terminalShifted);
-        typeMap[sub_XY2pos(XY)] = 'element'
-        posIdsTerminal.forEach(key => typeMap[key] = 'terminal');
+        typeMap[sub_XY2pos(XY)] =  {elementType:'element', positionType:''};
+        posIdsTerminal.forEach(key => typeMap[key] = {elementType:'node', positionType:'terminal'});
     }   
+    prjManager.createElement.hoverShape = hoverShape;
     prjManager.createElement.typeMap = typeMap;
+
 
 
     // validity check
@@ -191,7 +215,6 @@ function hoverElement(event, prjManager) {
     //
 
     
-    
 }
 
 // XXX : nodeline 완성 필요
@@ -206,19 +229,19 @@ function createElement(event,prjManager) {
         if (!prjManager.createElement.node.isClicked) {
             prjManager.createElement.node.startingXY = prjManager.uiStatus.hoverPoint;
             prjManager.createElement.node.isClicked = true;
+            hoverElement(event,prjManager,isRendering=true) 
             return; 
         } else {
             prjManager.createElement.node.isClicked = false;
-            prjManager.createElement.node.isCtrl = event.CtrlKey;
+            if (event.CtrlKey) prjManager.uiStatus.isCtrl = event.CtrlKey;
         }
     }
-
 
     // register new element & map
     if (isNodeline) sub_createNodeObject(prjManager);
     else sub_createElementObject(prjManager);
 
-    // graph obj rendering
+    // graph obj rendering ==> 나중에 이건 따로 함수로 뺴자-----------------------------------
     let elementNormal = [[],[]];
     let elementNoPara = [[],[]];
     let elementError = [[],[]];
@@ -229,26 +252,30 @@ function createElement(event,prjManager) {
     // let polarityelementError = [[],[]];
 
 
-    let elementsObj = prjManager.data.element;
+    let elementsObj = prjManager.data.elements;
     for (const elementId in elementsObj) {
-        if (!elementsObj.hasOwnProperty(elementId)) continue;        
         let element = elementsObj[elementId];
-        if (element.name == 'terminal') { // terminal : scatter
-            if (element.elementStatus == 'normal') {
-                terminalNormal = sub_concatXYs(terminalNormal,element.shapeMerged);
-            } else if (element.elementStatus == 'error') {
-                terminalError = sub_concatXYs(terminalError,element.shapeMerged);
-            }
-        } else { // main element shape line, polarity line
-            if (element.elementStatus == 'normal') {
-                elementNormal = sub_concatXYs(elementNormal,element.shapeMerged);
-            } else if (element.elementStatus == 'error') {
-                elementError = sub_concatXYs(elementError,element.shapeMerged);
-            } else if (element.elementStatus == 'nopara') {
-                elementNoPara = sub_concatXYs(elementNoPara,element.shapeMerged);
-            }
+        if (element.name == 'terminal' || element.name == 'nodeline') continue; 
+         // main element shape line, polarity line
+        if (element.elementStatus == 'normal') {
+            elementNormal = sub_concatXYs(elementNormal,element.shapeMerged);
+        } else if (element.elementStatus == 'error') {
+            elementError = sub_concatXYs(elementError,element.shapeMerged);
+        } else if (element.elementStatus == 'nopara') {
+            elementNoPara = sub_concatXYs(elementNoPara,element.shapeMerged);
         }
     }
+
+    let nodeGroups = prjManager.data.nodeGroups;
+    for (const nodeId in nodeGroups) {
+        let nodeGroup = nodeGroups[nodeId];
+        let terminalScat = sub_pos2XY(nodeGroup.terminalPositionId);
+        let jointScat = sub_pos2XY(nodeGroup.jointPositionId);
+        terminalNormal = sub_concatXYs(terminalNormal,sub_concatXYs(terminalScat,jointScat));
+        elementNormal = sub_concatXYs(elementNormal,nodeGroup.shapeMerged);        
+    }
+    
+
     
     sub_modifyLine(prjManager,'elementNormal',elementNormal)
     sub_modifyLine(prjManager,'elementNoPara',elementNoPara)
@@ -256,10 +283,16 @@ function createElement(event,prjManager) {
     sub_modifyLine(prjManager,'terminalNormal',terminalNormal)
     sub_modifyLine(prjManager,'terminalError',terminalError)
 
+    // ---------------------------------------------------------------------------------------------------------
+
     // hover rendering
-    hoverElement(event,prjManager) 
+    hoverElement(event,prjManager,isRendering=true) 
 
     // delca calc for undo/redo
+
+
+    console.log(prjManager.data)
+    
 
 }
 
@@ -271,7 +304,7 @@ function rotateElement(event,prjManager) {
     prjManager.createElement.shape = sub_rotateVectors(prjManager.createElement.shape);
     prjManager.createElement.terminal = sub_rotateVectors(prjManager.createElement.terminal);
     // hover rendering
-    hoverElement(event, prjManager)
+    hoverElement(event,prjManager,isRendering=true)
 }
 
 function switchElement(event,prjManager) {
@@ -282,7 +315,7 @@ function switchElement(event,prjManager) {
     prjManager.createElement.shape = sub_flipVectors(prjManager.createElement.shape);   
     prjManager.createElement.terminal = sub_flipVectors(prjManager.createElement.terminal);
     // hover rendering
-    hoverElement(event, prjManager)
+    hoverElement(event,prjManager,isRendering=true)
 }
 
 // XXX
@@ -299,10 +332,11 @@ function resetMode(event,prjManager) {
         rotation: 0,
         shape: null,
         shapeN: null,
+        hoverShape: [],
         terminal: null,
-        node: null,
         isValid: true,
         typeMap: null,
+        node: null,
     },
     sub_modifyLine(prjManager,'elementCreateNormal',[]);
 }

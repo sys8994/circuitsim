@@ -10,22 +10,22 @@ const prjManager = {
         canvas: document.getElementById("canvas"),
         Plotly: Plotly,
         lineData: [],
+        lineDataMap: {},
     },
     mode: 'normal', // Initial mode
     data: {
         counterElement: 0,
-        counterNodeGroup: 0,
-        element: {}, // circuit elements 
-        idMap: {}, // pos ID to element ID mapping
+        elements: {}, // circuit elements 
+        nodeGroups: {}, //node groups
         typeMap: {}, // pos ID to element type mapping
-        pos2nodeGroup: {},
-        nodeGroup2Id: {},
     },
     uiStatus: {
         dragClicked: false, // Indicates whether the mouse is clicked
         clickedPoint1: [], // Stores the starting point of the drag
         clickedPoint2: [], // Stores the ending point of the drag
-        hoverPoint: [], // element hover x,y points
+        hoverPoint: [], // element hover x,y points (discrete)
+        hoverPointContinuous: [], // element hover x,y points (continuous)
+        isCtrl: false, // ctrl key pressed
     },
     createElement: {
         name: null,
@@ -35,8 +35,9 @@ const prjManager = {
         shapeN: null,
         terminal: null,
         isValid: true,
-        typeMap: null,
         node: null,
+        hoverShape: [],
+        typeMap: {},
     },
     canvasSizeVar: {
         pixelsPerUnit: 30, // 1 단위당 픽셀 길이
@@ -62,7 +63,8 @@ const prjManager = {
                 if (prjManager.uiStatus.dragClicked) { canvasDrag(event, prjManager, opt='up') }
             },                
             keydown: (event) => {
-                if (event.ctrlKey) { 
+                if (event.ctrlKey && !prjManager.uiStatus.isCtrl) { 
+                    setCtrlStatus(event, prjManager,'press');
                     if (event.key === 'c' || event.key === 'x') { copyElement(event,prjManager) } 
                     else if (event.key === 'v') { pasteElement(event,prjManager) } 
                     else if (event.key === 's') { saveProject(event,prjManager) } 
@@ -71,6 +73,9 @@ const prjManager = {
                 else if (['1','2','3','4','5','6','7','8','9','0','t'].includes(event.key)) { selectElement(event, prjManager) } // element selection
                 else if (['F1','F2','F3','F4'].includes(event.key)) { selectOption(event, prjManager) } // element selection
                 else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) { canvasMove(event, prjManager) } // element selection
+            },
+            keyup: (event) => {
+                if (event.key === "Control" && prjManager.uiStatus.isCtrl) setCtrlStatus(event, prjManager,'release');
             },
             wheel: (event) => canvasWheel(event, prjManager),
             resize: (event) => canvasResize(event, prjManager),
@@ -81,9 +86,10 @@ const prjManager = {
                 else if (event.target.classList.contains('div-element')) { selectElement(event, prjManager) }
                 else if (event.target.classList.contains('div-option')) { selectOption(event, prjManager) }
             },               
-            mousemove: (event) => hoverElement(event, prjManager),
+            mousemove: (event) => hoverElement(event, prjManager, isRendering=false),
             keydown: (event) => {
-                if (event.ctrlKey) { 
+                if (event.ctrlKey && !prjManager.uiStatus.isCtrl) { 
+                    setCtrlStatus(event, prjManager,'press');
                     if (event.key === 's') { saveProject(event,prjManager) } 
                 }
                 else if (event.key === 'r') { rotateElement(event,prjManager) }
@@ -92,6 +98,9 @@ const prjManager = {
                 else if (['1','2','3','4','5','6','7','8','9','0','t'].includes(event.key)) { selectElement(event, prjManager) } // element selection
                 else if (['F1','F2','F3','F4'].includes(event.key)) { selectOption(event, prjManager) } // element selection
                 else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) { canvasMove(event, prjManager) } // element selection
+            },
+            keyup: (event) => {
+                if (event.key === "Control" && prjManager.uiStatus.isCtrl) setCtrlStatus(event, prjManager,'release');
             },
             wheel: (event) => canvasWheel(event, prjManager),
             resize: (event) => canvasResize(event, prjManager),
@@ -119,6 +128,7 @@ const prjManager = {
                 clickedPoint1: [], // Stores the starting point of the drag
                 clickedPoint2: [], // Stores the ending point of the drag
                 hoverPoint: [], // element hover x,y points
+                isCtrl: false, // ctrl key pressed
             }
     },
 
@@ -138,7 +148,7 @@ const prjManager = {
 // ===============================================================================================================================
 
 // List of event types to observe
-const observedEvents = ["mousemove", "mousedown", "mouseup", "keydown", "wheel"];
+const observedEvents = ["mousemove", "mousedown", "mouseup", "keydown", "keyup", "wheel"];
 // Add event listeners to the document
 observedEvents.forEach((eventType) => {
     document.addEventListener(eventType, (event) => prjManager.handleEvent(event));
@@ -215,15 +225,16 @@ const lineObjGroups = {
     elementError: { line: { color: 'rgb(228, 7, 51)', width: 2.0 }, },
     elementNoPara: { line: { color: 'rgb(238, 227, 28)', width: 1.5 }, },
     elementHover: { line: { color: 'rgb(90, 152, 146)', width: 1.5 }, },
-    terminalSelect: { mode:'marker', marker: { color: 'rgb(28, 0, 213)', size: 8.0 }, },
-    terminalNormal: { mode:'marker', marker: { color: 'rgb(40,40,40)', size: 4.0 }, },
-    terminalError: { mode:'marker', marker: { color: 'rgb(228, 7, 51)', size: 5.5 }, },
-    terminalNoPara: { mode:'marker', marker: { color: 'rgb(238, 227, 28)', size: 4.0 }, },
-    terminalHover: { mode:'marker', marker: { color: 'rgb(90, 152, 146)', size: 4.0 }, },
+    terminalSelect: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(28, 0, 213)', size: 12.0 }, },
+    terminalNormal: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(40,40,40)', size: 6.0 }, },
+    terminalError: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(228, 7, 51)', size: 8.0 }, },
+    terminalNoPara: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(238, 227, 28)', size: 6.0 }, },
+    terminalHover: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(90, 152, 146)', size: 6.0 }, },
     elementCreateNormal: { line: { color: 'rgb(190,190,190)', width: 1.2, }, },
     drag: {type: "scatter", line: { color: "rgba(112, 112, 112, 0.5)", width: 0.5 }, fill: "toself", fillcolor: "rgba(216, 216, 216, 0.5)", },
 }
 
+lineIndex = 0;
 for (const name in lineObjGroups) {
     let lineObj = {
         x: [], 
@@ -237,6 +248,8 @@ for (const name in lineObjGroups) {
         lineObj[info] = lineInfo[info];
     }
     prjManager.plotObject.lineData.push(lineObj);
+    prjManager.plotObject.lineDataMap[name]=lineIndex;
+    lineIndex += 1;
 }
 
 
