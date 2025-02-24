@@ -10,9 +10,8 @@ function setCtrlStatus(event, prjManager,option) {
     } else {
         prjManager.uiStatus.isCtrl = false;
     }
-    console.log('ctrl pressed!!!!!!', prjManager.uiStatus.isCtrl)
 
-
+    
     if (prjManager.mode === 'create') hoverElement(prjManager,isRendering=true);
 }
 
@@ -26,9 +25,9 @@ function canvasDrag(event,prjManager,opt) {
         prjManager.uiStatus.dragClicked = true; // Activate drag mode
         prjManager.uiStatus.clickedPoint1 = [X1,Y1]; // Set start point
         prjManager.uiStatus.clickedPoint2 = [X1,Y1]; // Set start point
-    
 
-    } else if (opt=='move') {
+
+    } else if (opt==='drag') {
         let [X1,Y1] = prjManager.uiStatus.clickedPoint1 
         let [X2,Y2] = sub_roundXY(prjManager,deg=0,bound=false) // unbounded mouse drag
         prjManager.uiStatus.clickedPoint2 = [X2,Y2]
@@ -41,6 +40,31 @@ function canvasDrag(event,prjManager,opt) {
         // drag object range change
         sub_modifyLine(prjManager,'drag', { x: [[Xmin,Xmax,Xmax,Xmin,Xmin]], y: [[Ymin,Ymin,Ymax,Ymax,Ymin]] });
         
+    } else if (opt==='hover') {
+        let nowPos = sub_XY2pos(sub_roundXY(prjManager,deg=2,bound=false)) + '';// unbounded mouse drag
+        let elements = prjManager.data.elements;
+        let targetElement = null;
+        for (let elementId in elements) {
+            let posMap = elements[elementId].posMap;
+            for (let pos in posMap) {                
+                if (pos===nowPos) {
+                    targetElement = elements[elementId];
+                    break
+                }
+            }
+        }
+        
+        if (!targetElement) {            
+            sub_modifyLine(prjManager,'lineHover',[]);
+            sub_modifyLine(prjManager,'markerHover',[]);
+        } else {
+            let lineHover = targetElement.shape;
+            let markerHover = targetElement.marker;
+            sub_modifyLine(prjManager,'lineHover',lineHover);
+            sub_modifyLine(prjManager,'markerHover',markerHover);
+        }
+
+
     } else {
         let [X1,Y1] = prjManager.uiStatus.clickedPoint1 
         let [X2,Y2] = prjManager.uiStatus.clickedPoint2
@@ -53,13 +77,44 @@ function canvasDrag(event,prjManager,opt) {
         Xmax = Math.max(X1,X2);
         Ymin = Math.min(Y1,Y2);
         Ymax = Math.max(Y1,Y2);
+
     
         // Perform action on drag
         sub_modifyLine(prjManager, 'drag', { x: [[]], y: [[]] });
         
         // drag
-        //
-        //               
+        let selectedIdList = [];
+        let elements = prjManager.data.elements;
+        for (let elementId in elements) {
+            let posMap = elements[elementId].posMap;
+            
+            for (let pos in posMap) {
+                let [X,Y] = sub_pos2XY(pos);
+
+                if (X>=Math.floor(Xmin) && X<=Math.ceil(Xmax) && Y>=Math.floor(Ymin) && Y<=Math.ceil(Ymax)) {
+                    selectedIdList.push(elementId);
+                    break;
+                }
+            }
+        }
+        prjManager.uiStatus.selectedIdList = selectedIdList;
+        // relevant element rendering (highlight)
+        if (selectedIdList.length === 0) {
+            sub_modifyLine(prjManager,'lineSelect',[]);
+            sub_modifyLine(prjManager,'markerSelect',[]);
+        } else {
+            let lineSelect = [[],[]];
+            let markerSelect = [[],[]];
+            let elementsObj = prjManager.data.elements;
+            for (const elementId of selectedIdList) {
+                let element = elementsObj[elementId];
+                lineSelect = sub_concatXYs(lineSelect,element.shape);
+                markerSelect = sub_concatXYs(markerSelect,element.marker);
+            };
+            sub_modifyLine(prjManager,'lineSelect',lineSelect);
+            sub_modifyLine(prjManager,'markerSelect',markerSelect);
+        }
+                    
     }
 }
 
@@ -102,7 +157,9 @@ function selectElement(event,prjManager) {
         
         const nodePointerShape = prjManager.circuitData.shapeset.shape_nodepnt;
         let elementId = 'eid'+prjManager.data.counter;
-        let currentElement = new Node(elementName, elementId);
+        let currentElement = structuredClone(NodeTemplate);
+        currentElement.elementName = elementName;
+        currentElement.elementId = elementId;
         currentElement.elementStatus = 'normal';
         prjManager.tempData.nodeInfo.shape = nodePointerShape;
         prjManager.tempData.nodeInfo.startingXY = [];
@@ -117,7 +174,9 @@ function selectElement(event,prjManager) {
         // create element object instance 
         const elementDefault = prjManager.circuitData.element[elementName]
         let elementId = 'eid'+prjManager.data.counter;
-        let currentElement = new Element(elementName, elementId);
+        let currentElement = structuredClone(ElementTemplate);
+        currentElement.elementName = elementName;
+        currentElement.elementId = elementId;
         currentElement.elementStatus = 'nopara';
         currentElement.polarity = elementDefault.polarity;
         currentElement.rotation = elementDefault.rotation;
@@ -157,17 +216,9 @@ function hoverElement(prjManager,isRendering=false) {
 
     // activate when XY grid changes 
     const hoverPoint = prjManager.uiStatus.hoverPoint
-    const hoverPointContinuous = prjManager.uiStatus.hoverPointContinuous
-    let XY;
-    let continuousXY;
-    if (isRendering) { // element select by hotkey
-        XY = hoverPoint
-        continuousXY = hoverPointContinuous
-    } else {
-        XY = sub_roundXY(prjManager,deg=2)
-        if (hoverPoint.length != 0 && hoverPoint[0] == XY[0] && hoverPoint[1] == XY[1]) return;
-        continuousXY = sub_roundXY(prjManager,deg=0)
-    }
+    let XY = sub_roundXY(prjManager,deg=2);
+    let continuousXY = sub_roundXY(prjManager,deg=0);
+    if (!isRendering && hoverPoint.length != 0 && hoverPoint[0] == XY[0] && hoverPoint[1] == XY[1]) return;
     prjManager.uiStatus.hoverPoint = XY
 
 
@@ -186,7 +237,7 @@ function hoverElement(prjManager,isRendering=false) {
         // element shift to XY        
         for (let key in tempElements) {
             element = tempElements[key];
-            element.shiftStart(XY);
+            Node.shiftStart(element,XY);
         }
         hoverShape = sub_shiftShape(nodePointerShape, XY);        
 
@@ -194,14 +245,13 @@ function hoverElement(prjManager,isRendering=false) {
     } else if (currentMode==='nodeend') {
         
         const nodePointerShape = prjManager.tempData.nodeInfo.shape;
-
         const startingXY = prjManager.tempData.nodeInfo.startingXY;
         const tempElements = prjManager.tempData.elements;
         let endingXY;
         // element shift to XY        
         for (let key in tempElements) {
             element = tempElements[key];
-            element.shift(startingXY,XY,continuousXY);
+            Node.shift(element,startingXY,XY,continuousXY);
             endingXY = element.segments[0][1];
             hoverShape = sub_concatXYs(hoverShape, element.shape);
         }
@@ -214,14 +264,14 @@ function hoverElement(prjManager,isRendering=false) {
         // element shift to XY        
         for (let key in tempElements) {
             element = tempElements[key];
-            element.shift(XY);
+            Element.shift(element,XY);
             hoverShape = sub_concatXYs(hoverShape, element.shape);
         }
     }   
 
     // validity check
     let {overlappedIdList,isValid} = sub_checkOverlap(prjManager)    
-    overlappedIdList = [...new Set(overlappedIdList)];
+    
     
     prjManager.tempData.isValid = isValid; 
     prjManager.tempData.overlappedIdList = overlappedIdList; 
@@ -233,15 +283,20 @@ function hoverElement(prjManager,isRendering=false) {
     // relevant element rendering (highlight)
     if (overlappedIdList.length === 0) {
         sub_modifyLine(prjManager,'lineRelevant',[]);
+        sub_modifyLine(prjManager,'markerRelevant',[]);
     } else {
         let lineRelevant = [[],[]];
+        let markerRelevant = [[],[]];
         let elementsObj = prjManager.data.elements;
         for (const elementId of overlappedIdList) {
             let element = elementsObj[elementId];
             lineRelevant = sub_concatXYs(lineRelevant,element.shape);
+            markerRelevant = sub_concatXYs(markerRelevant,element.marker);
         };
         sub_modifyLine(prjManager,'lineRelevant',lineRelevant);
+        sub_modifyLine(prjManager,'markerRelevant',markerRelevant);
     }
+
 
 }
 
@@ -279,7 +334,7 @@ function createElement(event,prjManager) {
     for (let key of targetIdList) targetElements[key] = prjManager.data.elements[key];   
 
     let isCtrl = prjManager.uiStatus.isCtrl;
-    let nodeGroups = sub_checkNodeGroups(targetElements,isCtrl)
+    let nodeGroups = sub_checkNodeGroups(targetElements,isCtrl)    
 
     // generate representative node (mergedNode) and delete others
     let deleteIdList = [];
@@ -288,21 +343,11 @@ function createElement(event,prjManager) {
         let representativeId = nodeGroup[0];
         let otherIdList = nodeGroup.slice(1);
         let mergedNode = elements[representativeId];
-        console.log('instance??', mergedNode instanceof Node); // true여야 함
         mergedNode = sub_mergeNodes(elements,representativeId,otherIdList);
         elements[representativeId] = mergedNode;
         deleteIdList = [...deleteIdList, ...otherIdList];        
     };
-    deleteIdList.forEach(key => delete elements[key]);
-
-
-    console.log('overlappedIdList',prjManager.tempData.overlappedIdList)
-    console.log('targetElements',targetElements)
-    console.log('nodegroup',nodeGroups)
-    console.log('elements',elements)
-    console.log('prj',prjManager)
-
-    
+    deleteIdList.forEach(key => delete elements[key]);    
 
     // temp data id update
     const newtempElements = {};
@@ -339,7 +384,7 @@ function createElement(event,prjManager) {
         }
 
         if (element.elementName == 'nodeline') {
-            markerNormal = sub_concatXYs(markerNormal,element.joints);
+            markerNormal = sub_concatXYs(markerNormal,element.marker);
         }
     }
 
@@ -354,15 +399,18 @@ function createElement(event,prjManager) {
     // hover rendering
     hoverElement(prjManager,isRendering=true) 
 
-    // delta calc for undo/redo
 
+    console.log(prjManager.data.elements)
+
+    // delta calc for undo/redo
+    //
 }
 
 function rotateElement(event,prjManager) {
     const tempElements = prjManager.tempData.elements;
     for (let key in tempElements) {
         let element = tempElements[key];      
-        element.rotate();
+        Element.rotate(element);
     }    
     hoverElement(prjManager,isRendering=true);
 }
@@ -371,7 +419,7 @@ function flipElement(event,prjManager) {
     const tempElements = prjManager.tempData.elements;
     for (let key in tempElements) {
         let element = tempElements[key];      
-        element.flip();
+        Element.flip(element);
     }    
     hoverElement(prjManager,isRendering=true);
 }

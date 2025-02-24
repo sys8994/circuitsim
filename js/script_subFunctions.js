@@ -56,7 +56,8 @@ function sub_checkOverlap(prjManager) {
                 for (let oldPos in oldPosMap) {
                     if (newPos != oldPos) continue;                    
                     if (newPosMap[newPos].elementType === 'element' || oldPosMap[oldPos].elementType === 'element') return {overlappedIdList:[],isValid:false};
-                    if (!isCtrl && (newPosMap[newPos].elementType === 'node' && newPosMap[newPos].elementType === 'node')) {
+                    if (newPosMap[newPos].elementType === 'terminal' || oldPosMap[oldPos].elementType === 'terminal') continue;
+                    if (!isCtrl && (newPosMap[newPos].elementType === 'node' && oldPosMap[oldPos].elementType === 'node')) {
                         let oldDirection = oldPosMap[oldPos].positionType;
                         let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
                         let oldIsHorizontal = oldDirection[0] & !oldDirection[1] & oldDirection[2] & !oldDirection[3];
@@ -70,7 +71,7 @@ function sub_checkOverlap(prjManager) {
             }
         }
     }
-    
+    overlappedIdList = [...new Set(overlappedIdList)];    
     return {overlappedIdList: overlappedIdList, isValid: true};;
 }
 
@@ -405,7 +406,7 @@ function sub_mergeNodes(elements,representativeId,otherIdList) {
         mergedNode.segments.push(...otherNode.segments);
         mergedNode.terminals.push(...otherNode.terminals);
     };
-    mergedNode.renderShape();
+    Node.renderShape(mergedNode);
     return mergedNode;
 }
 

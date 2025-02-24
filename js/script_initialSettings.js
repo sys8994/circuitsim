@@ -36,6 +36,7 @@ const prjManager = {
         hoverPoint: [], // element hover x,y points (discrete)
         hoverPointContinuous: [], // element hover x,y points (continuous)
         isCtrl: false, // ctrl key pressed
+        selectedIdList:[],
     },
     // createElement: {
     //     name: null,
@@ -67,9 +68,11 @@ const prjManager = {
                 else if (event.target.classList.contains('div-option')) { selectOption(event, prjManager) }
             },                
             mousemove: (event) => {
+                prjManager.uiStatus.currentXY = [event.clientX, event.clientY];
                 if (prjManager.uiStatus.dragClicked) { 
-                    prjManager.uiStatus.currentXY = [event.clientX, event.clientY];
-                    canvasDrag(event, prjManager, opt='move') 
+                    canvasDrag(event, prjManager, opt='drag');
+                } else {
+                    canvasDrag(event, prjManager, opt='hover');
                 }
             },
             mouseup: (event) => {
@@ -147,6 +150,7 @@ const prjManager = {
             hoverPoint: [], // element hover x,y points (discrete)
             hoverPointContinuous: [], // element hover x,y points (continuous)
             isCtrl: false, // ctrl key pressed
+            selectedIdList:[],
         };
     },
 
@@ -179,7 +183,7 @@ const prjManager = {
 // ===============================================================================================================================
 
 
-const ElementObject = {
+const ElementTemplate = {
     elementName:'',
     elementId:'',
     elementStatus:'normal',
@@ -192,106 +196,89 @@ const ElementObject = {
         terminal:[],
     },
     shape:[],
+    marker:[],
     posMap:{}
 };
 
-const NodeObject = {
+const NodeTemplate = {
     elementName:'',
     elementId:'',
     elementStatus:'normal',
     segments:[],    
     shape:[],
     terminals:[],
-    joints:[],
+    marker:[],
     posMap:{},
     isObsolete:false,
 };
 
 class Element {
-    elementName='';
-    elementId='';
-    elementStatus='normal';
-    position=[];
-    rotateCount=0;
-    flipCount=0;
-    relative={
-        shape:null,
-        shapeN:null,
-        terminal:[],
-    };
-    shape=[];
-    posMap={};
 
-    constructor(elementName, elementId) {
-        this.elementName = elementName;
-        this.elementId = elementId;
+    static shift(element,XY) {
+        element.position = sub_XY2pos(XY);
+        Element.renderShape(element);
     }
 
-    shift(XY) {
-        this.position = sub_XY2pos(XY);
-        this.renderShape();
-    }
+    static rotate(element,centerOfRotation=null) { 
+        if (element.elementName === 'node') return;
 
-    rotate(centerOfRotation=null) { 
-        if (this.elementName === 'node') return;
-
-        this.rotateCount = (this.rotateCount + 1) % 4;
+        element.rotateCount = (element.rotateCount + 1) % 4;
 
         // rotate shape
-        let [X,Y] = this.relative.shape;
+        let [X,Y] = element.relative.shape;
         // a=0; b=1; c=-1; d=0;
         let Xr = X.map((x, i) => x === null || Y[i] === null ? null : -Y[i]);
         let Yr = Y.map((y, i) => X[i] === null || y === null ? null : X[i]);
-        this.relative.shape = [Xr,Yr];
+        element.relative.shape = [Xr,Yr];
 
         // rotate terminal
-        let terminal = this.relative.terminal;
+        let terminal = element.relative.terminal;
         terminal = terminal.map(num => (num+1) % 4);
-        this.relative.terminal = terminal;
+        element.relative.terminal = terminal;
 
         // rotate position around center of rotation (optional)
         if (centerOfRotation) {
-            let [Xpos, Ypos] = sub_pos2XY(this.position);
+            let [Xpos, Ypos] = sub_pos2XY(element.position);
             let [Xcenter,Ycenter] = centerOfRotation;
             let Xnew = Xcenter-(Ypos-Ycenter);
             let Ynew = Ycenter+(Xpos-Xcenter);            
-            this.position = sub_XY2pos([Xnew,Ynew])
+            element.position = sub_XY2pos([Xnew,Ynew])
         };
-        this.renderShape();
+        Element.renderShape(element);
     }
 
-    flip(centerOfRotation=null) {
-        if (this.elementName === 'node') return;
+    static flip(element,centerOfRotation=null) {
+        if (element.elementName === 'node') return;
 
-        this.flipCount = (this.flipCount + 1) % 2;
+        element.flipCount = (element.flipCount + 1) % 2;
         
         // flip shape
-        let [X,Y] = this.relative.shape;
+        let [X,Y] = element.relative.shape;
         X = X.map(num => -num)
-        this.relative.shape = [X,Y];
+        element.relative.shape = [X,Y];
 
         // flip terminal
-        let terminal = this.relative.terminal;
+        let terminal = element.relative.terminal;
         terminal = terminal.map(num => {num===0?  2 : (num===2? 0 : num)});
-        this.relative.terminal = terminal;
+        element.relative.terminal = terminal;
 
         // flip position around center of rotation (optional)
         if (centerOfRotation) {
-            let [Xpos, Ypos] = sub_pos2XY(this.position);
+            let [Xpos, Ypos] = sub_pos2XY(element.position);
             let [Xcenter,Ycenter] = centerOfRotation;
             let Xnew = Xcenter-(Xpos-Xcenter);          
-            this.position = sub_XY2pos([Xnew,Ypos])
+            element.position = sub_XY2pos([Xnew,Ypos])
         };
 
-        this.renderShape();
+        Element.renderShape(element);
     }
 
-    renderShape() {
+    static renderShape(element) {
         // shape shift
-        let shape = this.relative.shape;  
-        let shapeN = this.relative.shapeN;  
-        let offset = sub_pos2XY(this.position);
-        this.shape = sub_shiftShapeMerged(shape, shapeN, offset); 
+        let shape = element.relative.shape;  
+        let shapeN = element.relative.shapeN;  
+        let offset = sub_pos2XY(element.position);
+        element.shape = sub_shiftShapeMerged(shape, shapeN, offset); 
 
         // position mapping
         function sub_positionShift(position,terminalIndex) {
@@ -302,16 +289,16 @@ class Element {
             else if(terminalIndex === 3) Y=Y-2;
             return sub_XY2pos([X,Y]);
         };
-        let position = this.position;
+        let position = element.position;
         let posMap = {};
-        posMap[position] = {elementId:this.elementId, elementType:'element',positionType:''}
+        posMap[position] = {elementId:element.elementId, elementType:'element',positionType:''}
 
         // terminal position mapping
-        for (let terminalIndex of this.relative.terminal) {
+        for (let terminalIndex of element.relative.terminal) {
             let terminalPosition = sub_positionShift(position,terminalIndex);
-            posMap[terminalPosition] = {elementId:this.elementId, elementType:'terminal',positionType:''}
+            posMap[terminalPosition] = {elementId:element.elementId, elementType:'terminal',positionType:''}
         }
-        this.posMap = posMap;
+        element.posMap = posMap;
 
         //
     }
@@ -319,29 +306,15 @@ class Element {
 
 
 class Node {
-    elementName='';
-    elementId='';
-    elementStatus='normal';
-    segments=[];    
-    shape=[];
-    terminals=[];
-    joints=[];
-    posMap={};
-    isObsolete=false;
-    
-    constructor(elementName, elementId) {
-        this.elementName = elementName;
-        this.elementId = elementId;
-    };
 
-    shiftStart(startingXY) {
+    static shiftStart(element,startingXY) {
         let posid = sub_XY2pos(startingXY);
         let posMap = {};
-        posMap[posid] = {elementId:this.elementId,elementType:'node',positionType:[false,false,false,false]}; 
-        this.posMap = posMap;
+        posMap[posid] = {elementId:element.elementId,elementType:'node',positionType:[false,false,false,false]}; 
+        element.posMap = posMap;
     };
 
-    shift(startingXY,endingXY,continuousXY) {
+    static shift(element,startingXY,endingXY,continuousXY) {
 
         let deltaX = Math.abs(startingXY[0] - continuousXY[0]);
         let deltaY = Math.abs(startingXY[1] - continuousXY[1]);
@@ -360,15 +333,15 @@ class Node {
             posIds = Array.from({ length: maxY - minY + 1 }, (_, i) => sub_XY2pos([endingXY[0],minY+i]));
         }
 
-        this.segments = [[startingXY,endingXY]];
-        this.renderShape();
+        element.segments = [[startingXY,endingXY]];
+        Node.renderShape(element);
     };
 
-    renderShape(){ // identify shape and posmap w/ position classification
+    static renderShape(element){ // identify shape and posmap w/ position classification
 
         function sub_addPoint(nodeId, key, newDirection, terminalPositionId, posMap) {
             if (key in posMap) {
-                let prevDirection = posMap[key];
+                let prevDirection = posMap[key].positionType;
                 newDirection = prevDirection.map((val, index) => val || newDirection[index]);
             }
             let elementType;
@@ -378,9 +351,9 @@ class Node {
             return posMap;
         }
 
-        let segments = this.segments;
-        let terminals = this.terminals;
-        let nodeId = this.elementId;
+        let segments = element.segments;
+        let terminals = element.terminals;
+        let nodeId = element.elementId;
     
         let posMap = {};
         let shape = [];
@@ -397,7 +370,7 @@ class Node {
             if (isHorizontal) { // horizontal segment
                 const start = Math.min(x1, x2);
                 const end = Math.max(x1, x2);
-                for (let x = start; x <= end; x+=2) {
+                for (let x = start; x <= end; x+=1) {
                     if (Math.abs(start-end)<0.5) direction = [false,false,false,false];
                     else if (Math.abs(x-start)<0.5) direction = [true,false,false,false];
                     else if (Math.abs(x-end)<0.5) direction = [false,false,true,false];
@@ -408,7 +381,7 @@ class Node {
             } else { // vertical segment
                 const start = Math.min(y1, y2);
                 const end = Math.max(y1, y2);
-                for (let y = start; y <= end; y+=2) {
+                for (let y = start; y <= end; y+=1) {
                     if (Math.abs(start-end)<0.5) direction = [false,false,false,false];
                     else if (Math.abs(y-start)<0.5) direction = [false,true,false,false];
                     else if (Math.abs(y-end)<0.5) direction = [false,false,false,true];
@@ -419,21 +392,19 @@ class Node {
             }
         }
 
-        let joints = []; 
+        let joint = []; 
         for (let pos in posMap) {
             let direction = posMap[pos].positionType;
             let count = direction.filter(value => value).length;
-            if (count>=3) joints.push(pos);            
+            if (count>=3) joint.push(pos);            
         }
-        joints = sub_pos2XY(joints);
+        joint = sub_pos2XY(joint);
     
-        this.shape = shape;
-        this.joints = joints;
-        this.posMap = posMap;
+        element.shape = shape;
+        element.marker = joint;
+        element.posMap = posMap;
 
     };
-
-
 };
 
 // Initialization ================================================================================================================
@@ -523,6 +494,7 @@ const lineObjGroups = {
     markerNoPara: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(238, 227, 28)', size: 6.0 }, },
     markerHover: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(90, 152, 146)', size: 6.0 }, },
     lineRelevant: { line: { color: 'rgb(125, 107, 240)', width: 1.5 }, },
+    markerRelevant: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(125, 107, 240)', size: 6.0 }, },
     lineCreateNormal: { line: { color: 'rgb(190,190,190)', width: 1.2, }, },
     drag: {type: "scatter", line: { color: "rgba(112, 112, 112, 0.5)", width: 0.5 }, fill: "toself", fillcolor: "rgba(216, 216, 216, 0.5)", },
 }
