@@ -26,38 +26,55 @@ function sub_pos2XY(pos) {
     }    
 }
 
-function sub_validityCheck(prjManager) {
+function sub_checkOverlap(prjManager) {
     // canvas range limit check
     const XY = prjManager.uiStatus.hoverPoint;
-    const rangeLim = prjManager.canvasSizeVar.canvasRangeLimit
-    if ( (XY[0] <= rangeLim[0]) || (XY[0] >= rangeLim[1]) || (XY[1] <= rangeLim[0]) || (XY[1] >= rangeLim[1]) ) return false
+    const rangeLim = prjManager.canvasProperty.canvasRangeLimit
+    if ( (XY[0] <= rangeLim[0]) || (XY[0] >= rangeLim[1]) || (XY[1] <= rangeLim[0]) || (XY[1] >= rangeLim[1]) ) return {overlappedIdList:[],isValid:false};
 
     // empty element array check
-    if (Object.keys(prjManager.data.elements).length == 0) return true
+    if (Object.keys(prjManager.data.elements).length == 0) return {overlappedIdList:[],isValid:true};
     
-    // validity check 
-    const prevTypeMap = prjManager.data.typeMap;
-    const newTypeMap = prjManager.createElement.typeMap;
-    const isCtrl = prjManager.uiStatus.isCtrl;
 
-    for (const pos in newTypeMap) {
-        if (pos in prevTypeMap) {
-            let newType = newTypeMap[pos];
-            let prevType = prevTypeMap[pos];
-            // element overlap : invalid
-            if (newType.elementType === 'element' || prevType.elementType === 'element') return false;
-            // node overlap w/ no ctrl mode: exclude any overlapped directions
-            else if (!isCtrl) { 
-                let newPos = newType.positionId;
-                let prevPos = prevType.positionId;
-                let isInvalid = newPos.some((val, i) => val && prevPos[i]);
-                if (isInvalid) return false;
+    // validity check 
+    const isCtrl = prjManager.uiStatus.isCtrl;
+    const oldElements = prjManager.data.elements;
+    const newElements = prjManager.tempData.elements;
+    let overlappedIdList = []
+
+    for (let newKey in newElements) {
+        let newElement = newElements[newKey]
+        let newPosMap = newElement.posMap;
+    
+        for (let oldKey in oldElements) {
+            let oldPosMap = oldElements[oldKey].posMap;
+            let oldElementId = oldElements[oldKey].elementId;
+            for (let newPos in newPosMap) {
+                let newDirection = newPosMap[newPos].positionType;
+                let newIsVertical = !newDirection[0] & newDirection[1] & !newDirection[2] & newDirection[3];
+                let newIsHorizontal = newDirection[0] & !newDirection[1] & newDirection[2] & !newDirection[3];
+                for (let oldPos in oldPosMap) {
+                    if (newPos != oldPos) continue;                    
+                    if (newPosMap[newPos].elementType === 'element' || oldPosMap[oldPos].elementType === 'element') return {overlappedIdList:[],isValid:false};
+                    if (!isCtrl && (newPosMap[newPos].elementType === 'node' && newPosMap[newPos].elementType === 'node')) {
+                        let oldDirection = oldPosMap[oldPos].positionType;
+                        let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
+                        let oldIsHorizontal = oldDirection[0] & !oldDirection[1] & oldDirection[2] & !oldDirection[3];
+
+                        let isInvalid = newDirection.some((val, i) => val && oldDirection[i]);
+                        if (isInvalid) return {overlappedIdList:[],isValid:false};
+    
+                        if ( !((newIsVertical & oldIsHorizontal) || (newIsHorizontal & oldIsVertical)) ) overlappedIdList.push(oldElementId);
+                    } else overlappedIdList.push(oldElementId);
+                }
             }
         }
     }
     
-    return true;
+    return {overlappedIdList: overlappedIdList, isValid: true};;
 }
+
+
 
 function sub_createNodeObject(prjManager) {
     
@@ -66,13 +83,13 @@ function sub_createNodeObject(prjManager) {
     let typeMapObj = prjManager.data.typeMap;
 
     // nodeline object
-    prjManager.data.counterElement += 1; 
+    prjManager.data.counter += 1; 
     const elementName = prjManager.createElement.name;
     const paraNames = prjManager.circuitData.element[elementName].paraNames;
     const shapeMerged = prjManager.createElement.node.shape;
     const posIds = prjManager.createElement.node.posIds;
     let elementObj = {
-        elementId: 'elementId'+prjManager.data.counterElement,
+        elementId: 'elementId'+prjManager.data.counter,
         positionId: posIds,
         name: elementName,
         shapeMerged: shapeMerged,
@@ -92,7 +109,7 @@ function sub_createElementObject(prjManager) {
 
     let elementObjSet = {};   
     let typeMapObj = prjManager.data.typeMap;
-    prjManager.data.counterElement += 1; 
+    prjManager.data.counter += 1; 
 
     // main element object
     const elementName = prjManager.createElement.name;
@@ -106,9 +123,9 @@ function sub_createElementObject(prjManager) {
     const paraNames = prjManager.circuitData.element[elementName].paraNames;
     const createSlaveId = (n, m) => Array.from({ length: n }, (_, i) => m + i + 1);
 
-    const masterId = prjManager.data.counterElement;
+    const masterId = prjManager.data.counter;
     let elementObj = {
-        elementId: 'elementId'+prjManager.data.counterElement,
+        elementId: 'elementId'+prjManager.data.counter,
         positionId: [sub_XY2pos(XY)],
         name: elementName,
         polarity: prjManager.createElement.polarity,
@@ -117,7 +134,7 @@ function sub_createElementObject(prjManager) {
         paraNames: paraNames,
         paraValues: null,
         elementStatus: 'nopara',
-        slaveId: createSlaveId(nTerminal, prjManager.data.counterElement),
+        slaveId: createSlaveId(nTerminal, prjManager.data.counter),
     };
     elementObjSet[elementObj.elementId] = elementObj;
     typeMapObj = sub_mapXYToId(typeMapObj, elementObj.positionId, elementObj.Id, 'element','');
@@ -126,9 +143,9 @@ function sub_createElementObject(prjManager) {
     // terminal objects (slaves)
     for (let i = 0; i < nTerminal; i++) {
         let terminalXY = [[terminalShifted[0][i]], [terminalShifted[1][i]]]
-        prjManager.data.counterElement += 1;
+        prjManager.data.counter += 1;
         let elementObj = {
-            elementId: 'elementId'+prjManager.data.counterElement,
+            elementId: 'elementId'+prjManager.data.counter,
             positionId: [sub_XY2pos(terminalXY)],
             name: 'terminal',
             elementStatus: 'normal',
@@ -152,11 +169,11 @@ function sub_removeKeys(obj,keys) {
 function sub_createNodeGroups(elementObj, prjManager) {
     let prevNodeGroups = prjManager.data.nodeGroups;
     let typeMapObj = prjManager.data.typeMap;
-    prjManager.data.counterElement += 1;
+    prjManager.data.counter += 1;
 
     // temp node group
     let newNodeGroup = {
-        nodeId: 'nodeId'+prjManager.data.counterElement,
+        nodeId: 'nodeId'+prjManager.data.counter,
         elementIdList:[elementObj.elementId],
         segmentList:[],
         terminalPositionId:[],
@@ -343,16 +360,16 @@ function sub_rerangeCanvas(prjManager) {
     const yCenter = (currentYRange[0] + currentYRange[1]) / 2;
 
     // 새로운 X, Y축 범위 계산 (중심 기준)
-    const xRange = width / prjManager.canvasSizeVar.pixelsPerUnit / 2;
-    const yRange = height / prjManager.canvasSizeVar.pixelsPerUnit / 2;
+    const xRange = width / prjManager.canvasProperty.pixelsPerUnit / 2;
+    const yRange = height / prjManager.canvasProperty.pixelsPerUnit / 2;
 
     const newXRange = [
-        Math.max(xCenter - xRange, prjManager.canvasSizeVar.canvasRangeLimit[2]),
-        Math.min(xCenter + xRange, prjManager.canvasSizeVar.canvasRangeLimit[3])
+        Math.max(xCenter - xRange, prjManager.canvasProperty.canvasRangeLimit[2]),
+        Math.min(xCenter + xRange, prjManager.canvasProperty.canvasRangeLimit[3])
     ];
     const newYRange = [
-        Math.max(yCenter - yRange, prjManager.canvasSizeVar.canvasRangeLimit[2]),
-        Math.min(yCenter + yRange, prjManager.canvasSizeVar.canvasRangeLimit[3])
+        Math.max(yCenter - yRange, prjManager.canvasProperty.canvasRangeLimit[2]),
+        Math.min(yCenter + yRange, prjManager.canvasProperty.canvasRangeLimit[3])
     ];
 
     // Plotly의 축 범위 업데이트
@@ -363,13 +380,13 @@ function sub_rerangeCanvas(prjManager) {
 
 }
 
-function sub_roundXY(event, prjManager, deg=2, bound=true) {
+function sub_roundXY(prjManager, deg=2, bound=true) {
     
     let roundX, roundY
     const canvas = prjManager.plotObject.canvas;
     let rect = canvas.getBoundingClientRect();
-    let startX = event.clientX - rect.left;
-    let startY = event.clientY - rect.top;
+    let startX = prjManager.uiStatus.currentXY[0] - rect.left;
+    let startY = prjManager.uiStatus.currentXY[1] - rect.top;
     const plotLayout = canvas._fullLayout;
     const pntX =  plotLayout.xaxis.range[0] + (startX / plotLayout.width) * (plotLayout.xaxis.range[1] - plotLayout.xaxis.range[0])
     const pntY =  plotLayout.yaxis.range[1] - (startY / plotLayout.height) * (plotLayout.yaxis.range[1] - plotLayout.yaxis.range[0])

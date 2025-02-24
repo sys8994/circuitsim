@@ -13,17 +13,14 @@ function setCtrlStatus(event, prjManager,option) {
     console.log('ctrl pressed!!!!!!', prjManager.uiStatus.isCtrl)
 
 
-    if (prjManager.mode === 'create') hoverElement(event,prjManager,isRendering=true);
+    if (prjManager.mode === 'create') hoverElement(prjManager,isRendering=true);
 }
-
-
-
 
 // XXX : do with drag
 function canvasDrag(event,prjManager,opt) {
     if (opt=='down') {
 
-        let [X1,Y1] = sub_roundXY(event,prjManager,deg=0)
+        let [X1,Y1] = sub_roundXY(prjManager,deg=0)
         if (!X1) return;
     
         prjManager.uiStatus.dragClicked = true; // Activate drag mode
@@ -33,7 +30,7 @@ function canvasDrag(event,prjManager,opt) {
 
     } else if (opt=='move') {
         let [X1,Y1] = prjManager.uiStatus.clickedPoint1 
-        let [X2,Y2] = sub_roundXY(event,prjManager,deg=0,bound=false) // unbounded mouse drag
+        let [X2,Y2] = sub_roundXY(prjManager,deg=0,bound=false) // unbounded mouse drag
         prjManager.uiStatus.clickedPoint2 = [X2,Y2]
         
         Xmin = Math.min(X1,X2);
@@ -66,8 +63,6 @@ function canvasDrag(event,prjManager,opt) {
     }
 }
 
-
-
 hotkeyObj = {
     '1':'nodeline',
     '2':'source',
@@ -83,30 +78,57 @@ hotkeyObj = {
 }
 function selectElement(event,prjManager) {
 
+    prjManager.data.counter = prjManager.data.counter + 1;
+
     let elementName
     if (event.type=='keydown') {
         if (!elementName in hotkeyObj) return;
         elementName = hotkeyObj[event.key]
     } else if (event.type ==='mousedown') {
-        elementName = event.target.id.replace('btn-','');
-    }
+        elementName = event.target.id.replace('btn-','');    
+    } // else if pastemode : clipboard에서 임시 객체들 가져와서 tempData에 옮기자자
 
     // uiData update by clicked circuit element    
-    prjManager.createElement.name = elementName;
+    // prjManager.createElement.name = elementName;
     if (elementName == 'nodeline') { // nodeline
-        prjManager.createElement.shape = prjManager.circuitData.shapeset.shape_nodepnt;
-        prjManager.createElement.node = {
-            isClicked: false,
-            startingXY: [],
-            endingXY: [],
-        }
+
+
+        // click 모드인 경우 nodegroup obj 생성 후 tempData에 옮기자
+
+        // node segment는 nodegroup 생성되면 다 제거하고, terminal은 남겨놓자.
+        // 아예 segment는 등록을 하지 말고 nodegroup을 element class로 격상하자
+        // 그러니까 element, terminal, nodegroup 세 type으로!
+
+        
+        const nodePointerShape = prjManager.circuitData.shapeset.shape_nodepnt;
+        let elementId = 'eid'+prjManager.data.counter;
+        let currentElement = new Node(elementName, elementId);
+        currentElement.elementStatus = 'normal';
+        prjManager.tempData.nodeInfo.shape = nodePointerShape;
+        prjManager.tempData.nodeInfo.startingXY = [];
+        prjManager.tempData.nodeInfo.endingXY = [];
+        prjManager.tempData.currentMode = 'nodestart';
+
+        prjManager.tempData.elements = {};
+        prjManager.tempData.elements[elementId] = currentElement;
+
     } else { // normal element
+ 
+        // create element object instance 
         const elementDefault = prjManager.circuitData.element[elementName]
-        prjManager.createElement.shape = elementDefault.shape
-        prjManager.createElement.shapeN = elementDefault.shapeN
-        prjManager.createElement.polarity = elementDefault.polarity
-        prjManager.createElement.rotation = elementDefault.rotation
-        prjManager.createElement.terminal = elementDefault.terminal
+        let elementId = 'eid'+prjManager.data.counter;
+        let currentElement = new Element(elementName, elementId);
+        currentElement.elementStatus = 'nopara';
+        currentElement.polarity = elementDefault.polarity;
+        currentElement.rotation = elementDefault.rotation;
+        currentElement.relative.shape = elementDefault.shape;
+        currentElement.relative.shapeN = elementDefault.shapeN;
+        currentElement.relative.terminal = elementDefault.terminal;
+
+        prjManager.tempData.elements = {};
+        prjManager.tempData.elements[elementId] = currentElement;
+        prjManager.tempData.currentMode = 'element';
+        
     }
     
     // html control : remove / set "btn-clicked" class 
@@ -117,7 +139,225 @@ function selectElement(event,prjManager) {
     prjManager.setMode('create')
 
     // hover rendering
-    hoverElement(event,prjManager,isRendering=true)
+    hoverElement(prjManager,isRendering=true)
+}
+
+// XXX highlight
+function hoverElement(prjManager,isRendering=false) {
+
+    
+    //////// 이거 전면수정하자. copy paste도 커버할 수 있도록.
+    // 일단 select Element 또는 select Paste mode가 되면, elementGroups, nodeGroups를 createElement에다 임시객체로 옮기고
+    // hoverElement에서는 이 임시객체를 다루는 일만 하자.
+    // xy offset 주고, validity check 하고, related node highlight (신설) 하고.
+    // rotate, switch도 얘네들을 다 커버할 수 있도록 수정하자.
+    // 그리고 createElement를 누르면, 임시 객체를 그냥 실제 객체로 옮겨서 등록하는 일만 하면 되겠지. 물론 nodegroup은 다시 계산해야겠지만.
+    // 근데 그 조차도 이미 node hover 시 related node highlight에 다 있음.
+
+
+    // activate when XY grid changes 
+    const hoverPoint = prjManager.uiStatus.hoverPoint
+    const hoverPointContinuous = prjManager.uiStatus.hoverPointContinuous
+    let XY;
+    let continuousXY;
+    if (isRendering) { // element select by hotkey
+        XY = hoverPoint
+        continuousXY = hoverPointContinuous
+    } else {
+        XY = sub_roundXY(prjManager,deg=2)
+        if (hoverPoint.length != 0 && hoverPoint[0] == XY[0] && hoverPoint[1] == XY[1]) return;
+        continuousXY = sub_roundXY(prjManager,deg=0)
+    }
+    prjManager.uiStatus.hoverPoint = XY
+
+
+
+
+
+    let hoverShape = [];
+    let currentMode = prjManager.tempData.currentMode;
+
+    // const isNodeline = prjManager.createElement.name === 'nodeline'
+    if (currentMode==='nodestart') { // nodeline mode
+
+        const nodePointerShape = prjManager.tempData.nodeInfo.shape;
+
+        const tempElementsList = prjManager.tempData.elements;
+        // element shift to XY        
+        for (let key in tempElementsList) {
+            element = tempElementsList[key];
+            element.shiftStart(XY);
+        }
+        hoverShape = sub_shiftShape(nodePointerShape, XY);        
+
+
+    } else if (currentMode==='nodeend') {
+        
+        const nodePointerShape = prjManager.tempData.nodeInfo.shape;
+
+        const startingXY = prjManager.tempData.nodeInfo.startingXY;
+        const tempElementsList = prjManager.tempData.elements;
+        let endingXY;
+        // element shift to XY        
+        for (let key in tempElementsList) {
+            element = tempElementsList[key];
+            element.shift(startingXY,XY,continuousXY);
+            endingXY = element.segments[0][1];
+            hoverShape = sub_concatXYs(hoverShape, element.shape);
+        }
+        
+        let hoverShapeCircle = sub_shiftShape(nodePointerShape, endingXY); 
+        hoverShape = sub_concatXYs(hoverShape,hoverShapeCircle);
+
+    } else { // normal element
+        const tempElementsList = prjManager.tempData.elements;
+        // element shift to XY        
+        for (let key in tempElementsList) {
+            element = tempElementsList[key];
+            element.shift(XY);
+            hoverShape = sub_concatXYs(hoverShape, element.shape);
+        }
+    }   
+
+    // validity check
+    let {overlappedIdList,isValid} = sub_checkOverlap(prjManager)
+    
+    prjManager.tempData.isValid = isValid; 
+    lineColor = isValid ? 'rgb(190,190,190)' : 'rgb(255, 112, 112)';
+
+    // main element rendering
+    sub_modifyLine(prjManager, 'lineCreateNormal', { x: [hoverShape[0]], y: [hoverShape[1]], 'line.color': lineColor});
+
+    // relevant element rendering (highlight)
+    console.log(overlappedIdList)
+    if (overlappedIdList.length === 0) {
+        sub_modifyLine(prjManager,'lineRelevant',[]);
+    } else {
+        let lineRelevant = [[],[]];
+        let elementsObj = prjManager.data.elements;
+        overlappedIdList = [...new Set(overlappedIdList)];
+        for (const elementId of overlappedIdList) {
+            let element = elementsObj[elementId];
+            lineRelevant = sub_concatXYs(lineRelevant,element.shape);
+        };
+        sub_modifyLine(prjManager,'lineRelevant',lineRelevant);
+    }
+
+}
+
+// XXX : nodeline 완성 필요
+function createElement(event,prjManager) {
+
+    // validity check
+    if (!prjManager.tempData.isValid) return
+
+    // nodeline
+    if (prjManager.tempData.currentMode === 'nodestart') {
+        prjManager.tempData.currentMode = 'nodeend';
+        prjManager.tempData.nodeInfo.startingXY = sub_roundXY(prjManager,deg=2);
+
+        hoverElement(prjManager,isRendering=true);
+        return
+
+
+    } else if (prjManager.tempData.currentMode === 'nodeend') {
+        prjManager.tempData.currentMode = 'nodestart';
+    }
+
+    // const isNodeline = prjManager.createElement.name === 'nodeline'
+    // if (isNodeline) {
+    //     if (!prjManager.createElement.node.isClicked) {
+    //         prjManager.createElement.node.startingXY = prjManager.uiStatus.hoverPoint;
+    //         prjManager.createElement.node.isClicked = true;
+    //         hoverElement(prjManager,isRendering=true) 
+    //         return; 
+    //     } else {
+    //         prjManager.createElement.node.isClicked = false;
+    //         if (event.CtrlKey) prjManager.uiStatus.isCtrl = event.CtrlKey;
+    //     }
+    // }
+
+    // register new element & map
+    prjManager.data.elements = {...prjManager.data.elements, ...structuredClone(prjManager.tempData.elements)};
+
+    // node merge
+    let elements = prjManager.data.elements;
+    let mergedIdObj = prjManager.data.mergedIdObj;
+    for (let mergedKey in mergedIdObj) {
+        let representativeNode = elements[mergedKey];
+        let mergedIdList = mergedIdObj[mergedKey];
+        representativeNode = sub_mergeNodeGroups(representativeNode,elements,mergedIdList);
+
+    }
+
+    // temp data id change
+    const tempElementsList = prjManager.tempData.elements;
+    const newTempElementsList = {};
+    for (let key in tempElementsList) {
+        prjManager.data.counter = prjManager.data.counter + 1;
+        let element = tempElementsList[key];
+        let newKey = 'eid'+prjManager.data.counter;
+        element.elementId = newKey;
+        newTempElementsList[newKey] = element;
+    } 
+    prjManager.tempData.elements = newTempElementsList;
+
+
+    // graph obj rendering ==> 나중에 이건 따로 함수로 뺴자-----------------------------------
+    let lineNormal = [[],[]];
+    let lineNoPara = [[],[]];
+    let lineError = [[],[]];
+    let markerNormal = [[],[]];
+    let markerError = [[],[]];
+    // let polaritylineNormal = [[],[]];
+    // let polaritylineNoPara = [[],[]];
+    // let polaritylineError = [[],[]];
+
+
+    let elementsObj = prjManager.data.elements;
+    for (const elementId in elementsObj) {
+        let element = elementsObj[elementId];
+         // main element shape line, polarity line
+        if (element.elementStatus == 'normal') {
+            lineNormal = sub_concatXYs(lineNormal,element.shape);
+        } else if (element.elementStatus == 'error') {
+            lineError = sub_concatXYs(lineError,element.shape);
+        } else if (element.elementStatus == 'nopara') {
+            lineNoPara = sub_concatXYs(lineNoPara,element.shape);
+        }
+    }
+
+    sub_modifyLine(prjManager,'lineNormal',lineNormal)
+    sub_modifyLine(prjManager,'lineNoPara',lineNoPara)
+    sub_modifyLine(prjManager,'lineError',lineError)
+    sub_modifyLine(prjManager,'markerNormal',markerNormal)
+    sub_modifyLine(prjManager,'markerError',markerError)
+
+    // ---------------------------------------------------------------------------------------------------------
+
+    // hover rendering
+    hoverElement(prjManager,isRendering=true) 
+
+    // delta calc for undo/redo
+
+}
+
+function rotateElement(event,prjManager) {
+    const tempElementsList = prjManager.tempData.elements;
+    for (let key in tempElementsList) {
+        let element = tempElementsList[key];      
+        element.rotate();
+    }    
+    hoverElement(prjManager,isRendering=true);
+}
+
+function flipElement(event,prjManager) {
+    const tempElementsList = prjManager.tempData.elements;
+    for (let key in tempElementsList) {
+        let element = tempElementsList[key];      
+        element.flip();
+    }    
+    hoverElement(prjManager,isRendering=true);
 }
 
 // XXX
@@ -140,191 +380,28 @@ function pasteElement(event,prjManager) {
 
 }
 
-// XXX highlight
-function hoverElement(event, prjManager,isRendering=false) {
 
-    //////// 이거 전면수정하자. copy paste도 커버할 수 있도록.
-    // 일단 select Element 또는 select Paste mode가 되면, elementGroups, nodeGroups를 createElement에다 임시객체로 옮기고
-    // hoverElement에서는 이 임시객체를 다루는 일만 하자.
-    // xy offset 주고, validity check 하고, related node highlight (신설) 하고.
-    // rotate, switch도 얘네들을 다 커버할 수 있도록 수정하자.
-    // 그리고 createElement를 누르면, 임시 객체를 그냥 실제 객체로 옮겨서 등록하는 일만 하면 되겠지. 물론 nodegroup은 다시 계산해야겠지만.
-    // 근데 그 조차도 이미 node hover 시 related node highlight에 다 있음.
+// function rotateElement(event,prjManager) {
+//     let elementName = prjManager.createElement.name;
+//     if (elementName === 'text' || elementName === 'nodeline') return;
+//     // 90deg rotation in clock-wise
+//     prjManager.createElement.rotation = (prjManager.createElement.rotation + 1) % 4;
+//     prjManager.createElement.shape = sub_rotateVectors(prjManager.createElement.shape);
+//     prjManager.createElement.terminal = sub_rotateVectors(prjManager.createElement.terminal);
+//     // hover rendering
+//     hoverElement(prjManager,isRendering=true)
+// }
 
-    // activate when XY grid changes 
-    const hoverPoint = prjManager.uiStatus.hoverPoint
-    const hoverPointContinuous = prjManager.uiStatus.hoverPointContinuous
-    if (isRendering) { // element select by hotkey
-        XY = hoverPoint
-        XYContinuous = hoverPointContinuous
-    } else {
-        XY = sub_roundXY(event,prjManager,deg=2)
-        if (hoverPoint.length != 0 && hoverPoint[0] == XY[0] && hoverPoint[1] == XY[1]) return;
-        XYContinuous = sub_roundXY(event,prjManager,deg=0)
-    }
-    prjManager.uiStatus.hoverPoint = XY
-
-    let hoverShape = [];
-    let typeMap = {};
-    if (prjManager.createElement.name === 'nodeline') { // nodeline
-
-        const shapeCircle = prjManager.createElement.shape;
-        if (!prjManager.createElement.node.isClicked) { // starting point
-            let hoverCircle = sub_shiftShape(shapeCircle, XY);
-            hoverShape = hoverCircle;
-            typeMap[sub_XY2pos(XY)] = {elementType:'node', positionType:'edge'}
-
-        } else { // ending point
-            const startingXY = prjManager.createElement.node.startingXY;
-
-            let [endingXY, posIds] = sub_generateNodeLine(startingXY, XY, XYContinuous, prjManager);
-            const shapeLineSegment = [[startingXY[0],endingXY[0]],[startingXY[1],endingXY[1]]];  
-            let hoverCircle = sub_shiftShape(shapeCircle, endingXY);
-            hoverShape = sub_concatXYs(hoverCircle,shapeLineSegment); // single line segment
-            prjManager.createElement.node.shape = shapeLineSegment;
-            prjManager.createElement.node.posIds = posIds;
-
-            // typeMap obj
-            posIds.forEach(key => typeMap[key] = {elementType:'node', positionType:'body'});
-            typeMap[sub_XY2pos(startingXY)] = {elementType:'node', positionType:'edge'};
-            typeMap[sub_XY2pos(endingXY)] = {elementType:'node', positionType:'edge'};
-        }
-    } else { // normal element
-        const shape = prjManager.createElement.shape;
-        const shapeN = prjManager.createElement.shapeN;
-        hoverShape = sub_shiftShapeMerged(shape, shapeN, XY);
-
-        // typeMap obj
-        const terminal = prjManager.createElement.terminal;
-        const terminalShifted = sub_shiftShape(terminal,XY);
-        const posIdsTerminal = sub_XY2pos(terminalShifted);
-        typeMap[sub_XY2pos(XY)] =  {elementType:'element', positionType:''};
-        posIdsTerminal.forEach(key => typeMap[key] = {elementType:'node', positionType:'terminal'});
-    }   
-    prjManager.createElement.hoverShape = hoverShape;
-    prjManager.createElement.typeMap = typeMap;
-
-
-
-    // validity check
-    let isValid = sub_validityCheck(prjManager)
-    prjManager.createElement.isValid = isValid; 
-    lineColor = isValid ? 'rgb(190,190,190)' : 'rgb(255, 112, 112)';
-
-    // element rendering
-    sub_modifyLine(prjManager, 'elementCreateNormal', { x: [hoverShape[0]], y: [hoverShape[1]], 'line.color': lineColor});
-
-    // relevant element rendering (highlight for nodelines)
-    // ctrl or not
-    // 1. starting : node인 경우 해당 node를 highlight
-    // 2. ending : node인 경우 해당 node를 highlight
-    // 3. ctrl : starting - ending 사이에 node인 경우 해당 node들을 highlight
-    //
-    //
-
-    
-}
-
-// XXX : nodeline 완성 필요
-function createElement(event,prjManager) {
-
-    // validity check
-    if (!prjManager.createElement.isValid) return
-
-    // nodeline
-    const isNodeline = prjManager.createElement.name === 'nodeline'
-    if (isNodeline) {
-        if (!prjManager.createElement.node.isClicked) {
-            prjManager.createElement.node.startingXY = prjManager.uiStatus.hoverPoint;
-            prjManager.createElement.node.isClicked = true;
-            hoverElement(event,prjManager,isRendering=true) 
-            return; 
-        } else {
-            prjManager.createElement.node.isClicked = false;
-            if (event.CtrlKey) prjManager.uiStatus.isCtrl = event.CtrlKey;
-        }
-    }
-
-    // register new element & map
-    if (isNodeline) sub_createNodeObject(prjManager);
-    else sub_createElementObject(prjManager);
-
-    // graph obj rendering ==> 나중에 이건 따로 함수로 뺴자-----------------------------------
-    let elementNormal = [[],[]];
-    let elementNoPara = [[],[]];
-    let elementError = [[],[]];
-    let terminalNormal = [[],[]];
-    let terminalError = [[],[]];
-    // let polarityelementNormal = [[],[]];
-    // let polarityelementNoPara = [[],[]];
-    // let polarityelementError = [[],[]];
-
-
-    let elementsObj = prjManager.data.elements;
-    for (const elementId in elementsObj) {
-        let element = elementsObj[elementId];
-        if (element.name == 'terminal' || element.name == 'nodeline') continue; 
-         // main element shape line, polarity line
-        if (element.elementStatus == 'normal') {
-            elementNormal = sub_concatXYs(elementNormal,element.shapeMerged);
-        } else if (element.elementStatus == 'error') {
-            elementError = sub_concatXYs(elementError,element.shapeMerged);
-        } else if (element.elementStatus == 'nopara') {
-            elementNoPara = sub_concatXYs(elementNoPara,element.shapeMerged);
-        }
-    }
-
-    let nodeGroups = prjManager.data.nodeGroups;
-    for (const nodeId in nodeGroups) {
-        let nodeGroup = nodeGroups[nodeId];
-        let terminalScat = sub_pos2XY(nodeGroup.terminalPositionId);
-        let jointScat = sub_pos2XY(nodeGroup.jointPositionId);
-        terminalNormal = sub_concatXYs(terminalNormal,sub_concatXYs(terminalScat,jointScat));
-        elementNormal = sub_concatXYs(elementNormal,nodeGroup.shapeMerged);        
-    }
-    
-
-    
-    sub_modifyLine(prjManager,'elementNormal',elementNormal)
-    sub_modifyLine(prjManager,'elementNoPara',elementNoPara)
-    sub_modifyLine(prjManager,'elementError',elementError)
-    sub_modifyLine(prjManager,'terminalNormal',terminalNormal)
-    sub_modifyLine(prjManager,'terminalError',terminalError)
-
-    // ---------------------------------------------------------------------------------------------------------
-
-    // hover rendering
-    hoverElement(event,prjManager,isRendering=true) 
-
-    // delca calc for undo/redo
-
-
-    console.log(prjManager.data)
-    
-
-}
-
-function rotateElement(event,prjManager) {
-    let elementName = prjManager.createElement.name;
-    if (elementName === 'text' || elementName === 'nodeline') return;
-    // 90deg rotation in clock-wise
-    prjManager.createElement.rotation = (prjManager.createElement.rotation + 1) % 4;
-    prjManager.createElement.shape = sub_rotateVectors(prjManager.createElement.shape);
-    prjManager.createElement.terminal = sub_rotateVectors(prjManager.createElement.terminal);
-    // hover rendering
-    hoverElement(event,prjManager,isRendering=true)
-}
-
-function switchElement(event,prjManager) {
-    let elementName = prjManager.createElement.name;
-    if (elementName === 'text' || elementName === 'nodeline') return;
-    // flip under y-axis (x -> -x)
-    prjManager.createElement.polarity = (prjManager.createElement.polarity + 1) % 2;
-    prjManager.createElement.shape = sub_flipVectors(prjManager.createElement.shape);   
-    prjManager.createElement.terminal = sub_flipVectors(prjManager.createElement.terminal);
-    // hover rendering
-    hoverElement(event,prjManager,isRendering=true)
-}
+// function switchElement(event,prjManager) {
+//     let elementName = prjManager.createElement.name;
+//     if (elementName === 'text' || elementName === 'nodeline') return;
+//     // flip under y-axis (x -> -x)
+//     prjManager.createElement.polarity = (prjManager.createElement.polarity + 1) % 2;
+//     prjManager.createElement.shape = sub_flipVectors(prjManager.createElement.shape);   
+//     prjManager.createElement.terminal = sub_flipVectors(prjManager.createElement.terminal);
+//     // hover rendering
+//     hoverElement(prjManager,isRendering=true)
+// }
 
 // XXX
 function saveProject(event,prjManager) {
@@ -334,19 +411,10 @@ function saveProject(event,prjManager) {
 // XXX
 function resetMode(event,prjManager) {
     prjManager.mode = 'normal';
-    prjManager.createElement = {
-        name: null,
-        polarity: 0,
-        rotation: 0,
-        shape: null,
-        shapeN: null,
-        hoverShape: [],
-        terminal: null,
-        isValid: true,
-        typeMap: null,
-        node: null,
-    },
-    sub_modifyLine(prjManager,'elementCreateNormal',[]);
+    prjManager.resetUiStatus();
+    prjManager.resetTempData();
+    sub_modifyLine(prjManager,'lineCreateNormal',[]);
+    sub_modifyLine(prjManager,'lineRelevant',[]);
 }
 
 function canvasResize(_, prjManager) {
@@ -398,23 +466,23 @@ function canvasWheel(event, prjManager) {
 
     // 줌 인/아웃 스케일 조정
     const zoomFactor = event.deltaY < 0 ? 0.9 : 1.1; // 줌인(스크롤 위): 0.9, 줌아웃(스크롤 아래): 1.1
-    const newPixelsPerUnit = prjManager.canvasSizeVar.pixelsPerUnit / zoomFactor;
-    if (newPixelsPerUnit < prjManager.canvasSizeVar.minPixelsPerUnit) {
-        prjManager.canvasSizeVar.pixelsPerUnit = prjManager.canvasSizeVar.minPixelsPerUnit
-    } else if (newPixelsPerUnit > prjManager.canvasSizeVar.maxPixelsPerUnit) {
-        prjManager.canvasSizeVar.pixelsPerUnit = prjManager.canvasSizeVar.maxPixelsPerUnit
+    const newPixelsPerUnit = prjManager.canvasProperty.pixelsPerUnit / zoomFactor;
+    if (newPixelsPerUnit < prjManager.canvasProperty.minPixelsPerUnit) {
+        prjManager.canvasProperty.pixelsPerUnit = prjManager.canvasProperty.minPixelsPerUnit
+    } else if (newPixelsPerUnit > prjManager.canvasProperty.maxPixelsPerUnit) {
+        prjManager.canvasProperty.pixelsPerUnit = prjManager.canvasProperty.maxPixelsPerUnit
     } else {
-        prjManager.canvasSizeVar.pixelsPerUnit = newPixelsPerUnit;
+        prjManager.canvasProperty.pixelsPerUnit = newPixelsPerUnit;
     }
 
     // 새로운 범위 계산
     const newXRange = [
-        Math.max(mouseX - (mouseX - currentXRange[0]) * zoomFactor, prjManager.canvasSizeVar.canvasRangeLimit[2]),
-        Math.min(mouseX + (currentXRange[1] - mouseX) * zoomFactor, prjManager.canvasSizeVar.canvasRangeLimit[3])
+        Math.max(mouseX - (mouseX - currentXRange[0]) * zoomFactor, prjManager.canvasProperty.canvasRangeLimit[2]),
+        Math.min(mouseX + (currentXRange[1] - mouseX) * zoomFactor, prjManager.canvasProperty.canvasRangeLimit[3])
     ];
     const newYRange = [
-        Math.max(mouseY - (mouseY - currentYRange[0]) * zoomFactor, prjManager.canvasSizeVar.canvasRangeLimit[2]),
-        Math.min(mouseY + (currentYRange[1] - mouseY) * zoomFactor, prjManager.canvasSizeVar.canvasRangeLimit[3])
+        Math.max(mouseY - (mouseY - currentYRange[0]) * zoomFactor, prjManager.canvasProperty.canvasRangeLimit[2]),
+        Math.min(mouseY + (currentYRange[1] - mouseY) * zoomFactor, prjManager.canvasProperty.canvasRangeLimit[3])
     ];
     // 범위 업데이트
     prjManager.plotObject.Plotly.relayout('canvas', {
@@ -433,31 +501,31 @@ function canvasMove(event,prjManager) {
     let newXRange = [...currentXRange];
     let newYRange = [...currentYRange];
 
-    let keystep = prjManager.canvasSizeVar.arrowKeyStep /  prjManager.canvasSizeVar.pixelsPerUnit;
+    let keystep = prjManager.canvasProperty.arrowKeyStep /  prjManager.canvasProperty.pixelsPerUnit;
 
     switch (event.key) {
         case 'ArrowLeft': // 왼쪽 방향키
             newXRange = [
-                Math.max(currentXRange[0] - keystep, prjManager.canvasSizeVar.canvasRangeLimit[2]),
-                Math.max(currentXRange[1] - keystep, prjManager.canvasSizeVar.canvasRangeLimit[2]),
+                Math.max(currentXRange[0] - keystep, prjManager.canvasProperty.canvasRangeLimit[2]),
+                Math.max(currentXRange[1] - keystep, prjManager.canvasProperty.canvasRangeLimit[2]),
             ];
             break;
         case 'ArrowRight': // 오른쪽 방향키
             newXRange = [
-                Math.min(currentXRange[0] + keystep, prjManager.canvasSizeVar.canvasRangeLimit[3]),
-                Math.min(currentXRange[1] + keystep, prjManager.canvasSizeVar.canvasRangeLimit[3]),
+                Math.min(currentXRange[0] + keystep, prjManager.canvasProperty.canvasRangeLimit[3]),
+                Math.min(currentXRange[1] + keystep, prjManager.canvasProperty.canvasRangeLimit[3]),
             ];
             break;
         case 'ArrowUp': // 위쪽 방향키
             newYRange = [
-                Math.min(currentYRange[0] + keystep, prjManager.canvasSizeVar.canvasRangeLimit[3]),
-                Math.min(currentYRange[1] + keystep, prjManager.canvasSizeVar.canvasRangeLimit[3]),
+                Math.min(currentYRange[0] + keystep, prjManager.canvasProperty.canvasRangeLimit[3]),
+                Math.min(currentYRange[1] + keystep, prjManager.canvasProperty.canvasRangeLimit[3]),
             ];
             break;
         case 'ArrowDown': // 아래쪽 방향키
             newYRange = [
-                Math.max(currentYRange[0] - keystep, prjManager.canvasSizeVar.canvasRangeLimit[2]),
-                Math.max(currentYRange[1] - keystep, prjManager.canvasSizeVar.canvasRangeLimit[2]),
+                Math.max(currentYRange[0] - keystep, prjManager.canvasProperty.canvasRangeLimit[2]),
+                Math.max(currentYRange[1] - keystep, prjManager.canvasProperty.canvasRangeLimit[2]),
             ];
             break;
         default:
