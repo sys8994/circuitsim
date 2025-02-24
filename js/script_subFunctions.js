@@ -75,6 +75,65 @@ function sub_checkOverlap(prjManager) {
 }
 
 
+function sub_checkNodeGroups(elements,isCtrl){
+    let keys = Object.keys(elements);
+    let parent = {}; 
+
+    function find(x) {
+        if (parent[x] === undefined) parent[x] = x; 
+        if (parent[x] !== x) parent[x] = find(parent[x]); // 경로 압축
+        return parent[x];
+    }
+
+    function union(x, y) {
+        let rootX = find(x);
+        let rootY = find(y);
+        if (rootX !== rootY) parent[rootY] = rootX; // 그룹 병합
+    }
+
+    function checkIsSameNode(element1,element2,isCtrl) {
+        let newPosMap = element1.posMap;
+        let oldPosMap = element2.posMap;
+        for (let newPos in newPosMap) {
+            let newDirection = newPosMap[newPos].positionType;
+            let newIsVertical = !newDirection[0] & newDirection[1] & !newDirection[2] & newDirection[3];
+            let newIsHorizontal = newDirection[0] & !newDirection[1] & newDirection[2] & !newDirection[3];
+            for (let oldPos in oldPosMap) {
+                if (newPos != oldPos) continue;                    
+                if (newPosMap[newPos].elementType === 'element' || oldPosMap[oldPos].elementType === 'element') return false;
+                if (!isCtrl && (newPosMap[newPos].elementType === 'node' && newPosMap[newPos].elementType === 'node')) {
+                    let oldDirection = oldPosMap[oldPos].positionType;
+                    let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
+                    let oldIsHorizontal = oldDirection[0] & !oldDirection[1] & oldDirection[2] & !oldDirection[3];
+                    if ( !((newIsVertical & oldIsHorizontal) || (newIsHorizontal & oldIsVertical)) ) return true;
+                } else return true;
+            }
+        }    
+    }    
+
+    // check every pair and merge group
+    for (let i = 0; i < keys.length; i++) {
+        for (let j = i + 1; j < keys.length; j++) {
+            if (checkIsSameNode(elements[keys[i]], elements[keys[j]],isCtrl)) {
+                union(keys[i], keys[j]);
+            }
+        }
+    }
+
+    let groups = {};
+    for (let key of keys) {
+        let root = find(key);
+        if (!groups[root]) groups[root] = [];
+        groups[root].push(key);
+    }
+
+    return Object.values(groups);
+}
+
+
+
+
+
 
 function sub_createNodeObject(prjManager) {
     
@@ -337,6 +396,19 @@ function sub_mergeNodeGroups(newNodeGroup, prevNodeGroups, mergedIdList) {
 
     return newNodeGroup;   
 }
+
+
+function sub_mergeNodes(elements,representativeId,otherIdList) {
+    let mergedNode = elements[representativeId];
+    for (let elementId of otherIdList) {
+        let otherNode = elements[elementId];
+        mergedNode.segments.push(...otherNode.segments);
+        mergedNode.terminals.push(...otherNode.terminals);
+    };
+    mergedNode.renderShape();
+    return mergedNode;
+}
+
 
 function sub_mapXYToId(mapInfo,positionId,elementId,elementType,positionType) {
     for (const Id of positionId) mapInfo[Id] = {elementId:elementId,elementType:elementType,positionType:positionType};

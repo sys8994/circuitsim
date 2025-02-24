@@ -182,10 +182,10 @@ function hoverElement(prjManager,isRendering=false) {
 
         const nodePointerShape = prjManager.tempData.nodeInfo.shape;
 
-        const tempElementsList = prjManager.tempData.elements;
+        const tempElements = prjManager.tempData.elements;
         // element shift to XY        
-        for (let key in tempElementsList) {
-            element = tempElementsList[key];
+        for (let key in tempElements) {
+            element = tempElements[key];
             element.shiftStart(XY);
         }
         hoverShape = sub_shiftShape(nodePointerShape, XY);        
@@ -196,11 +196,11 @@ function hoverElement(prjManager,isRendering=false) {
         const nodePointerShape = prjManager.tempData.nodeInfo.shape;
 
         const startingXY = prjManager.tempData.nodeInfo.startingXY;
-        const tempElementsList = prjManager.tempData.elements;
+        const tempElements = prjManager.tempData.elements;
         let endingXY;
         // element shift to XY        
-        for (let key in tempElementsList) {
-            element = tempElementsList[key];
+        for (let key in tempElements) {
+            element = tempElements[key];
             element.shift(startingXY,XY,continuousXY);
             endingXY = element.segments[0][1];
             hoverShape = sub_concatXYs(hoverShape, element.shape);
@@ -210,32 +210,32 @@ function hoverElement(prjManager,isRendering=false) {
         hoverShape = sub_concatXYs(hoverShape,hoverShapeCircle);
 
     } else { // normal element
-        const tempElementsList = prjManager.tempData.elements;
+        const tempElements = prjManager.tempData.elements;
         // element shift to XY        
-        for (let key in tempElementsList) {
-            element = tempElementsList[key];
+        for (let key in tempElements) {
+            element = tempElements[key];
             element.shift(XY);
             hoverShape = sub_concatXYs(hoverShape, element.shape);
         }
     }   
 
     // validity check
-    let {overlappedIdList,isValid} = sub_checkOverlap(prjManager)
+    let {overlappedIdList,isValid} = sub_checkOverlap(prjManager)    
+    overlappedIdList = [...new Set(overlappedIdList)];
     
     prjManager.tempData.isValid = isValid; 
+    prjManager.tempData.overlappedIdList = overlappedIdList; 
     lineColor = isValid ? 'rgb(190,190,190)' : 'rgb(255, 112, 112)';
 
     // main element rendering
     sub_modifyLine(prjManager, 'lineCreateNormal', { x: [hoverShape[0]], y: [hoverShape[1]], 'line.color': lineColor});
 
     // relevant element rendering (highlight)
-    console.log(overlappedIdList)
     if (overlappedIdList.length === 0) {
         sub_modifyLine(prjManager,'lineRelevant',[]);
     } else {
         let lineRelevant = [[],[]];
         let elementsObj = prjManager.data.elements;
-        overlappedIdList = [...new Set(overlappedIdList)];
         for (const elementId of overlappedIdList) {
             let element = elementsObj[elementId];
             lineRelevant = sub_concatXYs(lineRelevant,element.shape);
@@ -244,6 +244,7 @@ function hoverElement(prjManager,isRendering=false) {
     }
 
 }
+
 
 // XXX : nodeline 완성 필요
 function createElement(event,prjManager) {
@@ -255,52 +256,64 @@ function createElement(event,prjManager) {
     if (prjManager.tempData.currentMode === 'nodestart') {
         prjManager.tempData.currentMode = 'nodeend';
         prjManager.tempData.nodeInfo.startingXY = sub_roundXY(prjManager,deg=2);
-
         hoverElement(prjManager,isRendering=true);
         return
-
 
     } else if (prjManager.tempData.currentMode === 'nodeend') {
         prjManager.tempData.currentMode = 'nodestart';
     }
 
-    // const isNodeline = prjManager.createElement.name === 'nodeline'
-    // if (isNodeline) {
-    //     if (!prjManager.createElement.node.isClicked) {
-    //         prjManager.createElement.node.startingXY = prjManager.uiStatus.hoverPoint;
-    //         prjManager.createElement.node.isClicked = true;
-    //         hoverElement(prjManager,isRendering=true) 
-    //         return; 
-    //     } else {
-    //         prjManager.createElement.node.isClicked = false;
-    //         if (event.CtrlKey) prjManager.uiStatus.isCtrl = event.CtrlKey;
-    //     }
-    // }
 
     // register new element & map
     prjManager.data.elements = {...prjManager.data.elements, ...structuredClone(prjManager.tempData.elements)};
 
-    // node merge
     let elements = prjManager.data.elements;
-    let mergedIdObj = prjManager.data.mergedIdObj;
-    for (let mergedKey in mergedIdObj) {
-        let representativeNode = elements[mergedKey];
-        let mergedIdList = mergedIdObj[mergedKey];
-        representativeNode = sub_mergeNodeGroups(representativeNode,elements,mergedIdList);
-
+    let tempElements = prjManager.tempData.elements;
+    // node merge
+    let targetIdList = prjManager.tempData.overlappedIdList;
+    for (let key in prjManager.tempData.elements) {
+        if (prjManager.tempData.elements[key].elementName != 'nodeline') continue;
+        targetIdList.push(key);
     }
+    let targetElements = {};
+    for (let key of targetIdList) targetElements[key] = prjManager.data.elements[key];   
 
-    // temp data id change
-    const tempElementsList = prjManager.tempData.elements;
-    const newTempElementsList = {};
-    for (let key in tempElementsList) {
+    let isCtrl = prjManager.uiStatus.isCtrl;
+    let nodeGroups = sub_checkNodeGroups(targetElements,isCtrl)
+
+    // generate representative node (mergedNode) and delete others
+    let deleteIdList = [];
+    for (let nodeGroup of nodeGroups) {
+        if (nodeGroup.length === 1) continue;
+        let representativeId = nodeGroup[0];
+        let otherIdList = nodeGroup.slice(1);
+        let mergedNode = elements[representativeId];
+        console.log('instance??', mergedNode instanceof Node); // true여야 함
+        mergedNode = sub_mergeNodes(elements,representativeId,otherIdList);
+        elements[representativeId] = mergedNode;
+        deleteIdList = [...deleteIdList, ...otherIdList];        
+    };
+    deleteIdList.forEach(key => delete elements[key]);
+
+
+    console.log('overlappedIdList',prjManager.tempData.overlappedIdList)
+    console.log('targetElements',targetElements)
+    console.log('nodegroup',nodeGroups)
+    console.log('elements',elements)
+    console.log('prj',prjManager)
+
+    
+
+    // temp data id update
+    const newtempElements = {};
+    for (let key in tempElements) {
         prjManager.data.counter = prjManager.data.counter + 1;
-        let element = tempElementsList[key];
+        let element = tempElements[key];
         let newKey = 'eid'+prjManager.data.counter;
         element.elementId = newKey;
-        newTempElementsList[newKey] = element;
+        newtempElements[newKey] = element;
     } 
-    prjManager.tempData.elements = newTempElementsList;
+    prjManager.tempData.elements = newtempElements;
 
 
     // graph obj rendering ==> 나중에 이건 따로 함수로 뺴자-----------------------------------
@@ -314,9 +327,8 @@ function createElement(event,prjManager) {
     // let polaritylineError = [[],[]];
 
 
-    let elementsObj = prjManager.data.elements;
-    for (const elementId in elementsObj) {
-        let element = elementsObj[elementId];
+    for (const elementId in elements) {
+        let element = elements[elementId];
          // main element shape line, polarity line
         if (element.elementStatus == 'normal') {
             lineNormal = sub_concatXYs(lineNormal,element.shape);
@@ -324,6 +336,10 @@ function createElement(event,prjManager) {
             lineError = sub_concatXYs(lineError,element.shape);
         } else if (element.elementStatus == 'nopara') {
             lineNoPara = sub_concatXYs(lineNoPara,element.shape);
+        }
+
+        if (element.elementName == 'nodeline') {
+            markerNormal = sub_concatXYs(markerNormal,element.joints);
         }
     }
 
@@ -343,18 +359,18 @@ function createElement(event,prjManager) {
 }
 
 function rotateElement(event,prjManager) {
-    const tempElementsList = prjManager.tempData.elements;
-    for (let key in tempElementsList) {
-        let element = tempElementsList[key];      
+    const tempElements = prjManager.tempData.elements;
+    for (let key in tempElements) {
+        let element = tempElements[key];      
         element.rotate();
     }    
     hoverElement(prjManager,isRendering=true);
 }
 
 function flipElement(event,prjManager) {
-    const tempElementsList = prjManager.tempData.elements;
-    for (let key in tempElementsList) {
-        let element = tempElementsList[key];      
+    const tempElements = prjManager.tempData.elements;
+    for (let key in tempElements) {
+        let element = tempElements[key];      
         element.flip();
     }    
     hoverElement(prjManager,isRendering=true);

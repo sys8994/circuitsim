@@ -178,6 +178,35 @@ const prjManager = {
 // Class definition ==============================================================================================================
 // ===============================================================================================================================
 
+
+const ElementObject = {
+    elementName:'',
+    elementId:'',
+    elementStatus:'normal',
+    position:[],
+    rotateCount:0,
+    flipCount:0,
+    relative:{
+        shape:null,
+        shapeN:null,
+        terminal:[],
+    },
+    shape:[],
+    posMap:{}
+};
+
+const NodeObject = {
+    elementName:'',
+    elementId:'',
+    elementStatus:'normal',
+    segments:[],    
+    shape:[],
+    terminals:[],
+    joints:[],
+    posMap:{},
+    isObsolete:false,
+};
+
 class Element {
     elementName='';
     elementId='';
@@ -296,6 +325,7 @@ class Node {
     segments=[];    
     shape=[];
     terminals=[];
+    joints=[];
     posMap={};
     isObsolete=false;
     
@@ -353,7 +383,7 @@ class Node {
         let nodeId = this.elementId;
     
         let posMap = {};
-        let shape = [];        
+        let shape = [];
         
         for (let segment of segments) {
             let [x1, y1] = segment[0]; // 1st point
@@ -388,8 +418,17 @@ class Node {
                 }
             }
         }
+
+        let joints = []; 
+        for (let pos in posMap) {
+            let direction = posMap[pos].positionType;
+            let count = direction.filter(value => value).length;
+            if (count>=3) joints.push(pos);            
+        }
+        joints = sub_pos2XY(joints);
     
         this.shape = shape;
+        this.joints = joints;
         this.posMap = posMap;
 
     };
