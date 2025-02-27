@@ -20,7 +20,6 @@ function sub_pos2XY(pos) {
             Y.push(p%10000);
         });
         return [X,Y];
-
     } else { // for point
         return [Math.floor(pos/10000), pos%10000]
     }    
@@ -35,7 +34,6 @@ function sub_checkOverlap(prjManager) {
     // empty element array check
     if (Object.keys(prjManager.data.elements).length == 0) return {overlappedIdList:[],isValid:true};
     
-
     // validity check 
     const isCtrl = prjManager.uiStatus.isCtrl;
     const oldElements = prjManager.data.elements;
@@ -53,21 +51,20 @@ function sub_checkOverlap(prjManager) {
                 let newDirection = newPosMap[newPos].positionType;
                 let newIsVertical = !newDirection[0] & newDirection[1] & !newDirection[2] & newDirection[3];
                 let newIsHorizontal = newDirection[0] & !newDirection[1] & newDirection[2] & !newDirection[3];
-                for (let oldPos in oldPosMap) {
-                    if (newPos != oldPos) continue;                    
-                    if (newPosMap[newPos].elementType === 'element' || oldPosMap[oldPos].elementType === 'element') return {overlappedIdList:[],isValid:false};
-                    if (newPosMap[newPos].elementType === 'terminal' || oldPosMap[oldPos].elementType === 'terminal') continue;
-                    if (!isCtrl && (newPosMap[newPos].elementType === 'node' && oldPosMap[oldPos].elementType === 'node')) {
-                        let oldDirection = oldPosMap[oldPos].positionType;
-                        let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
-                        let oldIsHorizontal = oldDirection[0] & !oldDirection[1] & oldDirection[2] & !oldDirection[3];
 
-                        let isInvalid = newDirection.some((val, i) => val && oldDirection[i]);
-                        if (isInvalid) return {overlappedIdList:[],isValid:false};
-    
-                        if ( !((newIsVertical & oldIsHorizontal) || (newIsHorizontal & oldIsVertical)) ) overlappedIdList.push(oldElementId);
-                    } else overlappedIdList.push(oldElementId);
-                }
+                if (!newPos in oldPosMap) continue;
+                if (newPosMap[newPos].elementType === 'element' || oldPosMap[newPos].elementType === 'element') return {overlappedIdList:[],isValid:false};
+                if (newPosMap[newPos].elementType === 'terminal' || oldPosMap[newPos].elementType === 'terminal') continue;                
+                if (!isCtrl && (newPosMap[newPos].elementType === 'node' && oldPosMap[newPos].elementType === 'node')) {
+                    let oldDirection = oldPosMap[newPos].positionType;
+                    let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
+                    let oldIsHorizontal = oldDirection[0] & !oldDirection[1] & oldDirection[2] & !oldDirection[3];
+
+                    let isInvalid = newDirection.some((val, i) => val && oldDirection[i]);
+                    if (isInvalid) return {overlappedIdList:[],isValid:false};
+
+                    if ( !((newIsVertical & oldIsHorizontal) || (newIsHorizontal & oldIsVertical)) ) overlappedIdList.push(oldElementId);
+                } else overlappedIdList.push(oldElementId);                
             }
         }
     }
@@ -99,25 +96,21 @@ function sub_checkNodeGroups(elements,isCtrl){
             let newDirection = newPosMap[newPos].positionType;
             let newIsVertical = !newDirection[0] & newDirection[1] & !newDirection[2] & newDirection[3];
             let newIsHorizontal = newDirection[0] & !newDirection[1] & newDirection[2] & !newDirection[3];
-            for (let oldPos in oldPosMap) {
-                if (newPos != oldPos) continue;                    
-                if (newPosMap[newPos].elementType === 'element' || oldPosMap[oldPos].elementType === 'element') return false;
-                if (!isCtrl && (newPosMap[newPos].elementType === 'node' && newPosMap[newPos].elementType === 'node')) {
-                    let oldDirection = oldPosMap[oldPos].positionType;
-                    let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
-                    let oldIsHorizontal = oldDirection[0] & !oldDirection[1] & oldDirection[2] & !oldDirection[3];
-                    if ( !((newIsVertical & oldIsHorizontal) || (newIsHorizontal & oldIsVertical)) ) return true;
-                } else return true;
-            }
+            if (!newPos in oldPosMap) continue;      
+            if (newPosMap[newPos].elementType === 'element' || oldPosMap[newPos].elementType === 'element') return false;
+            if (!isCtrl && (newPosMap[newPos].elementType === 'node' && newPosMap[newPos].elementType === 'node')) {
+                let oldDirection = oldPosMap[newPos].positionType;
+                let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
+                let oldIsHorizontal = oldDirection[0] & !oldDirection[1] & oldDirection[2] & !oldDirection[3];
+                if ( !((newIsVertical & oldIsHorizontal) || (newIsHorizontal & oldIsVertical)) ) return true;
+            } else return true;            
         }    
     }    
 
     // check every pair and merge group
     for (let i = 0; i < keys.length; i++) {
         for (let j = i + 1; j < keys.length; j++) {
-            if (checkIsSameNode(elements[keys[i]], elements[keys[j]],isCtrl)) {
-                union(keys[i], keys[j]);
-            }
+            if (checkIsSameNode(elements[keys[i]], elements[keys[j]],isCtrl)) union(keys[i], keys[j]);
         }
     }
 
@@ -127,14 +120,8 @@ function sub_checkNodeGroups(elements,isCtrl){
         if (!groups[root]) groups[root] = [];
         groups[root].push(key);
     }
-
     return Object.values(groups);
 }
-
-
-
-
-
 
 function sub_createNodeObject(prjManager) {
     
@@ -160,7 +147,7 @@ function sub_createNodeObject(prjManager) {
     elementObjSet[elementObj.elementId] = elementObj;
     prjManager.data.elements = {...prjManager.data.elements, ...elementObjSet}
 
-    // nodeGroup create
+    // create nodeGroup
     sub_createNodeGroups(elementObj, prjManager);
 
 }
@@ -214,10 +201,9 @@ function sub_createElementObject(prjManager) {
         };
         elementObjSet[elementObj.elementId] = elementObj;
 
-        // nodeGroup create
+        // create nodeGroup
         sub_createNodeGroups(elementObj, prjManager);
-    }
-    
+    }    
     prjManager.data.elements = {...prjManager.data.elements, ...elementObjSet}
 }
 
@@ -253,8 +239,9 @@ function sub_createNodeGroups(elementObj, prjManager) {
     };
     newNodeGroup = sub_identifyPosType(newNodeGroup);
 
-    if (Object.keys(prevNodeGroups).length === 0) { // initialize empty nodeGroups
-        mergedIdList = [];
+    if (Object.keys(prevNodeGroups).length === 0) { 
+        // initialize empty nodeGroups
+        mergedIdList = []; 
     } else {
         // find overlapped node groups to the new node group 
         let isCtrl = prjManager.uiStatus.isCtrl;
@@ -293,8 +280,8 @@ function sub_identifyPosType(nodeGroup) {
     }
     
     for (segment of segmentList) {
-        let [x1, y1] = segment[0]; // 1st point
-        let [x2, y2] = segment[1]; // 2nd point
+        let [x1, y1] = segment[0]; // starting point
+        let [x2, y2] = segment[1]; // ending point
 
         isHorizontal = Math.abs(y1-y2) < 0.5;
 
@@ -320,20 +307,18 @@ function sub_identifyPosType(nodeGroup) {
             }
         }
     }
-
     nodeGroup.posMap = posMap;
-
     return nodeGroup;
 }
 
 function sub_findoverlappedNodeGroups(newNodeGroup, prevNodeGroups,isCtrl) {    
     
-    let mergedIdList = [];
-
     function sub_hasCommonElement(A, B) {
-        const setB = new Set(B); // B를 Set으로 변환하여 빠른 검색
-        return A.some(element => setB.has(element)); // A의 요소 중 하나라도 B에 있으면 true 반환
+        const setB = new Set(B); 
+        return A.some(element => setB.has(element));
     }
+    
+    let mergedIdList = [];   
 
     if (isCtrl) { // nodegroup w/ any duplicate position Id
         let newPositionId = Object.keys(newNodeGroup.posMap);
@@ -353,24 +338,20 @@ function sub_findoverlappedNodeGroups(newNodeGroup, prevNodeGroups,isCtrl) {
                 let newDirection = newPosInfo.positionType;
                 let newIsVertical = !newDirection[0] & newDirection[1] & !newDirection[2] & newDirection[3];
                 let newIsHorizontal = newDirection[0] & !newDirection[1] & newDirection[2] & !newDirection[3];
-                for (prevPos in prevPosMap) {
-                    let prevPosInfo = prevPosMap[prevPos];
-                    let prevDirection = prevPosInfo.positionType;
-                    let prevIsVertical = !prevDirection[0] & prevDirection[1] & !prevDirection[2] & prevDirection[3];
-                    let prevIsHorizontal = prevDirection[0] & !prevDirection[1] & prevDirection[2] & !prevDirection[3];
-                    if (newPos === prevPos) {
-                        if ( !((newIsVertical & prevIsHorizontal) || (newIsHorizontal & prevIsVertical)) ) {
-                            isMerged = true;
-                            break
-                        }                        
-                    }
-                }
+                
+                if (!newPos in prevPosMap) continue;                
+                let prevPosInfo = prevPosMap[newPos];
+                let prevDirection = prevPosInfo.positionType;
+                let prevIsVertical = !prevDirection[0] & prevDirection[1] & !prevDirection[2] & prevDirection[3];
+                let prevIsHorizontal = prevDirection[0] & !prevDirection[1] & prevDirection[2] & !prevDirection[3];
+                if ( !((newIsVertical & prevIsHorizontal) || (newIsHorizontal & prevIsVertical)) ) {
+                    isMerged = true;
+                    break
+                }                    
             }
-
             if (isMerged) mergedIdList.push(prevNodeGroups[key].nodeId);
         }
     }
-
     return mergedIdList
 }
 
@@ -398,7 +379,6 @@ function sub_mergeNodeGroups(newNodeGroup, prevNodeGroups, mergedIdList) {
     return newNodeGroup;   
 }
 
-
 function sub_mergeNodes(elements,representativeId,otherIdList) {
     let mergedNode = elements[representativeId];
     for (let elementId of otherIdList) {
@@ -410,29 +390,22 @@ function sub_mergeNodes(elements,representativeId,otherIdList) {
     return mergedNode;
 }
 
-
 function sub_mapXYToId(mapInfo,positionId,elementId,elementType,positionType) {
     for (const Id of positionId) mapInfo[Id] = {elementId:elementId,elementType:elementType,positionType:positionType};
     return mapInfo;
 }
 
 function sub_rerangeCanvas(prjManager) {
-    // 플롯의 실제 크기 가져오기
-
     const plot = prjManager.plotObject.canvas._fullLayout;
-    const width = plot.width;  // 플롯 내부 너비
-    const height = plot.height; // 플롯 내부 높이
+    const width = plot.width;
+    const height = plot.height;
 
-    // 현재 X, Y축의 범위 가져오기
     const currentLayout = prjManager.plotObject.canvas.layout;
     const currentXRange = currentLayout.xaxis.range; // [xmin, xmax]
     const currentYRange = currentLayout.yaxis.range; // [ymin, ymax]
-
-    // 현재 중심 계산
+    
     const xCenter = (currentXRange[0] + currentXRange[1]) / 2;
     const yCenter = (currentYRange[0] + currentYRange[1]) / 2;
-
-    // 새로운 X, Y축 범위 계산 (중심 기준)
     const xRange = width / prjManager.canvasProperty.pixelsPerUnit / 2;
     const yRange = height / prjManager.canvasProperty.pixelsPerUnit / 2;
 
@@ -445,7 +418,6 @@ function sub_rerangeCanvas(prjManager) {
         Math.min(yCenter + yRange, prjManager.canvasProperty.canvasRangeLimit[3])
     ];
 
-    // Plotly의 축 범위 업데이트
     prjManager.plotObject.Plotly.relayout('canvas', {
         'xaxis.range': newXRange,
         'yaxis.range': newYRange
@@ -479,7 +451,6 @@ function sub_roundXY(prjManager, deg=2, bound=true) {
         roundX = Math.max(roundX, Math.min(currentXRange[0], currentXRange[1]));
         roundY = Math.max(roundY, Math.min(currentYRange[0], currentYRange[1]));
     }
-
     return [roundX,roundY]
 }
 
@@ -521,7 +492,6 @@ function sub_concatXYs(XY1, XY2) {
 }
 
 function sub_modifyLine(prjManager, lineName, property) {
-
     targetIndex = prjManager.plotObject.lineDataMap[lineName];
     if (Array.isArray(property)) {
         if (property.length === 0) {
@@ -531,12 +501,9 @@ function sub_modifyLine(prjManager, lineName, property) {
         }        
     }
     prjManager.plotObject.Plotly.restyle('canvas', property, targetIndex);
-
-
 }
 
 function sub_generateNodeLine(startingXY, endingXY, XYContinuous, prjManager) { // only horizontal or vertical nodeline allowed
-
 
     let deltaX = Math.abs(startingXY[0] - XYContinuous[0]);
     let deltaY = Math.abs(startingXY[1] - XYContinuous[1]);
