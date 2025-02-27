@@ -16,12 +16,10 @@ const prjManager = {
     data: {
         counter: 0,
         elements: {}, // circuit elements 
-        typeMap: {}, // pos ID to element type mapping
     },
     tempData: {
         counter: 0,
         elements: {}, // circuit elements 
-        typeMap: {}, // pos ID to element type mapping
         hoverShape: [],
         nodeInfo: {},
         isValid: true,
@@ -38,22 +36,10 @@ const prjManager = {
         isCtrl: false, // ctrl key pressed
         selectedIdList:[],
     },
-    // createElement: {
-    //     name: null,
-    //     polarity: 0,
-    //     rotation: 0,
-    //     shape: null,
-    //     shapeN: null,
-    //     terminal: null,
-    //     isValid: true,
-    //     node: null,
-    //     hoverShape: [],
-    //     typeMap: {},
-    // },
     canvasProperty: {
-        pixelsPerUnit: 30, // 1 단위당 픽셀 길이
-        minPixelsPerUnit: 1, // 최소 1 단위당 5px
-        maxPixelsPerUnit: 100, // 최대 1 단위당 100px
+        pixelsPerUnit: 30, // default pixels per unit (grid)
+        minPixelsPerUnit: 1,
+        maxPixelsPerUnit: 100,
         canvasRangeLimit: [0,300,-50,350], // x, y range limit
         arrowKeyStep: 30, // arrow key step size
     },
@@ -158,7 +144,6 @@ const prjManager = {
         this.tempData= {
             counter: 0,
             elements: {}, // circuit elements 
-            typeMap: {}, // pos ID to element type mapping
             hoverShape: [],
             nodeInfo: {},
             isValid: true,
@@ -418,56 +403,39 @@ observedEvents.forEach((eventType) => {
 });
 window.addEventListener("resize", (event) => prjManager.handleEvent(event)); // resize
 
-// load circuit data
-// prjManager.circuitData = circuitData
-
-// function fetchCircuitData() {
-//     fetch('https://raw.githubusercontent.com/sys8994/circuitsim/master/data.json')
-//     .then(response => response.json())
-//     .then(data => {
-//         prjManager.circuitData = data
-//         console.log('circuitData:',prjManager.circuitData)
-//     })
-//     .catch(error => console.error('Error loading JSON:', error));
-// }
-// fetchCircuitData()
-// console.log('circuitData:',circuitData)
-
 
 // plot objects initialization ===================================================================================================
 // ===============================================================================================================================
 
 // layout
 const layout = {
-    // 1. 플롯의 제목을 없애고, 툴바를 숨김
     title: '',
     showlegend: false,
-    dragmode: false, // 드래그 모드 비활성화
-    hovermode: false, // hover 모드 비활성화 (옵션)
+    dragmode: false,
+    hovermode: false,
 
-    // 2. x, y축 비율을 1:1로 설정
     xaxis: {
-        scaleanchor: 'y', // y축과 비율 고정
-        scaleratio: 1, // x축: y축 비율 1:1
-        showgrid: false, // 그리드 활성화
-        dtick: 1, // x축 틱 간격 1
-        zeroline: false, // 축선 숨김
-        showticklabels: false, // 틱 라벨 숨김
-        range: [-10, 10], // x축 범위 설정
-        title: '' // 라벨 숨김
+        scaleanchor: 'y',
+        scaleratio: 1,
+        showgrid: false,
+        dtick: 1,
+        zeroline: false,
+        showticklabels: false,
+        range: [-10, 10],
+        title: ''
     },
     yaxis: {
-        showgrid: false, // 그리드 활성화
-        dtick: 1, // x축 틱 간격 1
-        zeroline: false, // 축선 숨김
-        showticklabels: false, // 틱 라벨 숨김
-        range: [-10, 10], // y축 범위 설정
-        title: '' // 라벨 숨김
+        showgrid: false,
+        dtick: 1,
+        zeroline: false,
+        showticklabels: false,
+        range: [-10, 10],
+        title: ''
     },
-    margin: { l: 0, r: 0, t: 0, b: 0 }, // 여백 제거
+    margin: { l: 0, r: 0, t: 0, b: 0 },
 };
 const config = {
-    displayModeBar: false, // 툴바 숨김
+    displayModeBar: false,
 };
 
 // gridlines & boundary
@@ -517,9 +485,7 @@ for (const name in lineObjGroups) {
     lineIndex += 1;
 }
 
-
-// plotly initialization
-function initiatePlotly(layout, config, prjManager) {
+function initiatePlotly(layout, config, prjManager) { // plotly initialization
     const { canvas, Plotly } = prjManager.plotObject; // Access Plotly and canvas via prjManager.plotObject
     Plotly.newPlot(canvas, prjManager.plotObject.lineData, layout, config);
     Plotly.relayout('canvas', {
@@ -527,6 +493,6 @@ function initiatePlotly(layout, config, prjManager) {
         'yaxis.range': [(lims0+lims1)/2-20,(lims0+lims1)/2+20,],
     });
 }
-initiatePlotly(layout, config, prjManager)
 
+initiatePlotly(layout, config, prjManager)
 canvasResize([],prjManager)
