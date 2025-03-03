@@ -18,7 +18,6 @@ const prjManager = {
         elements: {}, // circuit elements 
     },
     tempData: {
-        counter: 0,
         elements: {}, // circuit elements 
         hoverShape: [],
         nodeInfo: {},
@@ -142,7 +141,6 @@ const prjManager = {
 
     resetTempData() {        
         this.tempData= {
-            counter: 0,
             elements: {}, // circuit elements 
             hoverShape: [],
             nodeInfo: {},
@@ -172,14 +170,17 @@ const ElementTemplate = {
     elementName:'',
     elementId:'',
     elementStatus:'normal',
-    position:[],
+    centerPosition:[],
+    offset:[],  
+    realPosition:[],
     rotateCount:0,
     flipCount:0,
     relative:{
         shape:null,
         shapeN:null,
-        terminal:[],
+        terminal:[], // ?
     },
+    slave:[],
     shape:[],
     marker:[],
     posMap:{}
@@ -189,6 +190,7 @@ const NodeTemplate = {
     elementName:'',
     elementId:'',
     elementStatus:'normal',
+    centerPosition:[],
     segments:[],    
     shape:[],
     terminals:[],
@@ -197,16 +199,32 @@ const NodeTemplate = {
     isObsolete:false,
 };
 
+const TerminalTemplate = {
+    elementName:'terminal',
+    elementId:'',
+    elementStatus:'normal',
+    centerPosition:[],
+    offset:[],  
+    realPosition:[],
+    marker:[],
+    shape:[],
+    nodeGroup:[],
+    master:[],
+    posMap:{},
+};
+
 class Element {
 
     static shift(element,XY) {
-        element.position = sub_XY2pos(XY);
-        Element.renderShape(element);
+
+        let [offsetX,offsetY] = sub_pos2XY(element.offset);
+        element.centerPosition = sub_XY2pos(XY);
+        element.realPosition = sub_XY2pos([XY[0]+offsetX,XY[1]+offsetY]);
+        
+        this.renderShape(element);
     }
 
-    static rotate(element,centerOfRotation=null) { 
-        if (element.elementName === 'node') return;
-
+    static rotate(element) { 
         element.rotateCount = (element.rotateCount + 1) % 4;
 
         // rotate shape
@@ -216,79 +234,83 @@ class Element {
         let Yr = Y.map((y, i) => X[i] === null || y === null ? null : X[i]);
         element.relative.shape = [Xr,Yr];
 
-        // rotate terminal
-        let terminal = element.relative.terminal;
-        terminal = terminal.map(num => (num+1) % 4);
-        element.relative.terminal = terminal;
+        // rotate offset
+        let [offsetX,offsetY] = sub_pos2XY(element.offset);
+        element.offset = sub_XY2pos([-offsetY, offsetX]);
 
-        // rotate position around center of rotation (optional)
-        if (centerOfRotation) {
-            let [Xpos, Ypos] = sub_pos2XY(element.position);
-            let [Xcenter,Ycenter] = centerOfRotation;
-            let Xnew = Xcenter-(Ypos-Ycenter);
-            let Ynew = Ycenter+(Xpos-Xcenter);            
-            element.position = sub_XY2pos([Xnew,Ynew])
-        };
-        Element.renderShape(element);
+        this.renderShape(element);
     }
 
-    static flip(element,centerOfRotation=null) {
-        if (element.elementName === 'node') return;
-
+    static flip(element) {
         element.flipCount = (element.flipCount + 1) % 2;
         
         // flip shape
         let [X,Y] = element.relative.shape;
         X = X.map(num => -num)
         element.relative.shape = [X,Y];
+        
+        // flip offset
+        let [offsetX,offsetY] = sub_pos2XY(element.offset);
+        element.offset = sub_XY2pos([-offsetX, offsetY]);
 
-        // flip terminal
-        let terminal = element.relative.terminal;
-        terminal = terminal.map(num => {num===0?  2 : (num===2? 0 : num)});
-        element.relative.terminal = terminal;
-
-        // flip position around center of rotation (optional)
-        if (centerOfRotation) {
-            let [Xpos, Ypos] = sub_pos2XY(element.position);
-            let [Xcenter,Ycenter] = centerOfRotation;
-            let Xnew = Xcenter-(Xpos-Xcenter);          
-            element.position = sub_XY2pos([Xnew,Ypos])
-        };
-
-        Element.renderShape(element);
+        this.renderShape(element);
     }
 
     static renderShape(element) {
-        // shape shift
+        
         let shape = element.relative.shape;  
-        let shapeN = element.relative.shapeN;  
-        let offset = sub_pos2XY(element.position);
-        element.shape = sub_shiftShapeMerged(shape, shapeN, offset); 
+        let shapeN = element.relative.shapeN; 
+        let centerPosition = sub_pos2XY(element.centerPosition);
+        let offset = sub_pos2XY(element.offset); 
+        let realPosition = [centerPosition[0]+offset[0] , centerPosition[1]+offset[1]];
+        element.realPosition = sub_XY2pos(realPosition);
+        element.shape = sub_shiftShapeMerged(shape, shapeN, realPosition); 
 
-        // position mapping
-        function sub_positionShift(position,terminalIndex) {
-            let [X,Y] = sub_pos2XY(position);
-            if (terminalIndex === 0) X=X+2;
-            else if (terminalIndex === 1) Y=Y+2;
-            else if (terminalIndex === 2) X=X-2;
-            else if(terminalIndex === 3) Y=Y-2;
-            return sub_XY2pos([X,Y]);
-        };
-        let position = element.position;
         let posMap = {};
-        posMap[position] = {elementId:element.elementId, elementType:'element',positionType:''}
-
-        // terminal position mapping
-        for (let terminalIndex of element.relative.terminal) {
-            let terminalPosition = sub_positionShift(position,terminalIndex);
-            posMap[terminalPosition] = {elementId:element.elementId, elementType:'terminal',positionType:''}
-        }
+        posMap[realPosition] = {elementId:element.elementId, elementType:'element',positionType:''}
         element.posMap = posMap;
-
-        //
     }
 };
 
+
+class Terminal {
+
+    static shift(element,XY) {
+        
+        let [offsetX,offsetY] = sub_pos2XY(element.offset);
+        element.centerPosition = sub_XY2pos(XY);
+        element.realPosition = sub_XY2pos([XY[0]+offsetX,XY[1]+offsetY]);
+        
+        this.renderShape(element);
+    }
+    
+    static rotate(element) { 
+        // rotate offset
+        let [offsetX,offsetY] = sub_pos2XY(element.offset);
+        element.offset = sub_XY2pos([-offsetY, offsetX]);
+        this.renderShape(element);
+    }
+
+    static flip(element) {
+        // flip offset
+        let [offsetX,offsetY] = sub_pos2XY(element.offset);
+        element.offset = sub_XY2pos([-offsetX, offsetY]);
+        this.renderShape(element);
+    }
+
+    static renderShape(element) {
+
+        let centerPosition = sub_pos2XY(element.centerPosition);
+        let offset = sub_pos2XY(element.offset);   
+        let realPosition = [centerPosition[0]+offset[0] , centerPosition[1]+offset[1]];     
+        element.realPosition = sub_XY2pos(realPosition);
+        element.marker = [[centerPosition[0]+offset[0]], [centerPosition[1]+offset[1]]];
+
+        let posMap = {};
+        posMap[realPosition] = {elementId:element.elementId, elementType:'terminal',positionType:[false,false,false,false]}
+        element.posMap = posMap;
+    }
+}
 
 class Node {
 
@@ -319,15 +341,15 @@ class Node {
         }
 
         element.segments = [[startingXY,endingXY]];
-        Node.renderShape(element);
+        this.renderShape(element);
     };
 
     static renderShape(element){ // identify shape and posmap w/ position classification
 
         function sub_addPoint(nodeId, key, newDirection, terminalPositionId, posMap) {
             if (key in posMap) {
-                let prevDirection = posMap[key].positionType;
-                newDirection = prevDirection.map((val, index) => val || newDirection[index]);
+                let oldDirection = posMap[key].positionType;
+                newDirection = oldDirection.map((val, index) => val || newDirection[index]);
             }
             let elementType;
             if (terminalPositionId.includes(key)) elementType = 'terminal';
@@ -449,22 +471,22 @@ for (let a = lims0; a <= lims1; a += 2) {
 }
 
 const lineObjGroups = {
-    grid: { x:x_grid, y:y_grid, line: { color: 'rgb(230,230,230)', width: 0.5 }, },
-    gridBoundary: { x: [lims0, lims1, lims1, lims0, lims0], y: [lims0, lims0, lims1, lims1, lims0], line: { color: 'rgb(130,130,130)', width: 1.0 }, },
-    lineSelect: { line: { color: 'rgb(28, 0, 213)', width: 3.0 }, },
-    lineNormal: { line: { color: 'rgb(40,40,40)', width: 1.5 }, },
-    lineError: { line: { color: 'rgb(228, 7, 51)', width: 2.0 }, },
-    lineNoPara: { line: { color: 'rgb(238, 227, 28)', width: 1.5 }, },
-    lineHover: { line: { color: 'rgb(90, 152, 146)', width: 1.5 }, },
-    markerSelect: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(28, 0, 213)', size: 12.0 }, },
-    markerNormal: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(40,40,40)', size: 6.0 }, },
-    markerError: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(228, 7, 51)', size: 8.0 }, },
-    markerNoPara: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(238, 227, 28)', size: 6.0 }, },
-    markerHover: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(90, 152, 146)', size: 6.0 }, },
-    lineRelevant: { line: { color: 'rgb(125, 107, 240)', width: 1.5 }, },
-    markerRelevant: { line: {width: 0}, mode:'marker', marker: { color: 'rgb(125, 107, 240)', size: 6.0 }, },
-    lineCreateNormal: { line: { color: 'rgb(190,190,190)', width: 1.2, }, },
-    drag: {type: "scatter", line: { color: "rgba(112, 112, 112, 0.5)", width: 0.5 }, fill: "toself", fillcolor: "rgba(216, 216, 216, 0.5)", },
+    grid: { x:x_grid, y:y_grid, line: { color: 'rgb(230,230,230)', width: 0.5 }, visible:true, },
+    gridBoundary: { x: [lims0, lims1, lims1, lims0, lims0], y: [lims0, lims0, lims1, lims1, lims0], line: { color: 'rgb(130,130,130)', width: 1.0 }, visible:true, },
+    lineSelect: { line: { color: 'rgb(28, 0, 213)', width: 3.0 }, visible:true, },
+    lineNormal: { line: { color: 'rgb(40,40,40)', width: 1.5 }, visible:true, },
+    lineError: { line: { color: 'rgb(228, 7, 51)', width: 2.0 }, visible:true, },
+    lineNoPara: { line: { color: 'rgb(238, 227, 28)', width: 1.5 }, visible:true, },
+    lineHover: { line: { color: 'rgb(90, 152, 146)', width: 1.5 }, visible:true, },
+    markerSelect: { line: {width: 0}, mode:'lines+markers', marker: { color: 'rgb(28, 0, 213)', size: 8.0 }, visible:true, },
+    markerNormal: { line: {width: 0}, mode:'lines+markers', marker: { color: 'rgb(40,40,40)', size: 6.0 }, visible:true, },
+    markerError: { line: {width: 0}, mode:'lines+markers', marker: { color: 'rgb(228, 7, 51)', size: 7.0 }, visible:true, },
+    markerNoPara: { line: {width: 0}, mode:'lines+markers', marker: { color: 'rgb(238, 227, 28)', size: 6.0 }, visible:true, },
+    markerHover: { line: {width: 0}, mode:'lines+markers', marker: { color: 'rgb(90, 152, 146)', size: 6.0 }, visible:true, },
+    lineRelevant: { line: { color: 'rgb(125, 107, 240)', width: 1.5 }, visible:true, },
+    markerRelevant: { line: {width: 0}, mode:'lines+markers', marker: { color: 'rgb(125, 107, 240)', size: 6.0 }, visible:true, },
+    lineCreateNormal: { line: { color: 'rgb(190,190,190)', width: 1.2, }, visible:true, },
+    drag: {type: "scatter", line: { color: "rgba(112, 112, 112, 0.5)", width: 0.5 }, fill: "toself", fillcolor: "rgba(216, 216, 216, 0.5)", visible:true, },
 }
 
 lineIndex = 0;

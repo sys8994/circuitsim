@@ -3,27 +3,29 @@
 // sub functions =================================================================================================================
 // ===============================================================================================================================
 
+
 function sub_XY2pos(XY) {
     if (Array.isArray(XY[0])) { // for array
-        return XY[0].map((x, i) => x * 10000 + XY[1][i]);
+        return XY[0].map((x, i) => `${x},${XY[1][i]}`);
     } else { // for point
-        return XY[0]*10000 + XY[1]
+        return `${XY[0]},${XY[1]}`;
     }
 }
 
 function sub_pos2XY(pos) {
     if (Array.isArray(pos)) { // for array
-        let X = [];
-        let Y = [];
+        let X = [], Y = [];
         pos.forEach(p => {
-            X.push(Math.floor(p/10000));
-            Y.push(p%10000);
+            let [x, y] = p.split(',').map(Number);
+            X.push(x);
+            Y.push(y);
         });
         return [X,Y];
     } else { // for point
-        return [Math.floor(pos/10000), pos%10000]
+        return pos.split(',').map(Number)
     }    
 }
+
 
 function sub_checkOverlap(prjManager) {
     // canvas range limit check
@@ -52,7 +54,7 @@ function sub_checkOverlap(prjManager) {
                 let newIsVertical = !newDirection[0] & newDirection[1] & !newDirection[2] & newDirection[3];
                 let newIsHorizontal = newDirection[0] & !newDirection[1] & newDirection[2] & !newDirection[3];
 
-                if (!newPos in oldPosMap) continue;
+                if (!(newPos in oldPosMap)) continue;
                 if (newPosMap[newPos].elementType === 'element' || oldPosMap[newPos].elementType === 'element') return {overlappedIdList:[],isValid:false};
                 if (newPosMap[newPos].elementType === 'terminal' || oldPosMap[newPos].elementType === 'terminal') continue;                
                 if (!isCtrl && (newPosMap[newPos].elementType === 'node' && oldPosMap[newPos].elementType === 'node')) {
@@ -96,9 +98,10 @@ function sub_checkNodeGroups(elements,isCtrl){
             let newDirection = newPosMap[newPos].positionType;
             let newIsVertical = !newDirection[0] & newDirection[1] & !newDirection[2] & newDirection[3];
             let newIsHorizontal = newDirection[0] & !newDirection[1] & newDirection[2] & !newDirection[3];
-            if (!newPos in oldPosMap) continue;      
+            if (!(newPos in oldPosMap)) continue;      
             if (newPosMap[newPos].elementType === 'element' || oldPosMap[newPos].elementType === 'element') return false;
-            if (!isCtrl && (newPosMap[newPos].elementType === 'node' && newPosMap[newPos].elementType === 'node')) {
+            console.log('newPosMap',newPosMap,'oldPosMap',oldPosMap,'newPos',newPos)
+            if (!isCtrl && (newPosMap[newPos].elementType === 'node' && oldPosMap[newPos].elementType === 'node')) {
                 let oldDirection = oldPosMap[newPos].positionType;
                 let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
                 let oldIsHorizontal = oldDirection[0] & !oldDirection[1] & oldDirection[2] & !oldDirection[3];
@@ -129,7 +132,7 @@ function sub_createNodeObject(prjManager) {
     let idMapObj = {};
     let typeMapObj = prjManager.data.typeMap;
 
-    // nodeline object
+    // node object
     prjManager.data.counter += 1; 
     const elementName = prjManager.createElement.name;
     const paraNames = prjManager.circuitData.element[elementName].paraNames;
@@ -213,7 +216,7 @@ function sub_removeKeys(obj,keys) {
 }
 
 function sub_createNodeGroups(elementObj, prjManager) {
-    let prevNodeGroups = prjManager.data.nodeGroups;
+    let oldNodeGroups = prjManager.data.nodeGroups;
     let typeMapObj = prjManager.data.typeMap;
     prjManager.data.counter += 1;
 
@@ -230,7 +233,7 @@ function sub_createNodeGroups(elementObj, prjManager) {
     }
     if (elementObj.name==='terminal') {
         newNodeGroup.terminalPositionId = elementObj.positionId[0];
-    } else if (elementObj.name==='nodeline') {
+    } else if (elementObj.name==='node') {
         let [x1,x2] =elementObj.shapeMerged[0];
         let [y1,y2] =elementObj.shapeMerged[1];
         let segment = [[x1,y1],[x2,y2]];
@@ -239,24 +242,24 @@ function sub_createNodeGroups(elementObj, prjManager) {
     };
     newNodeGroup = sub_identifyPosType(newNodeGroup);
 
-    if (Object.keys(prevNodeGroups).length === 0) { 
+    if (Object.keys(oldNodeGroups).length === 0) { 
         // initialize empty nodeGroups
         mergedIdList = []; 
     } else {
         // find overlapped node groups to the new node group 
         let isCtrl = prjManager.uiStatus.isCtrl;
-        mergedIdList = sub_findoverlappedNodeGroups(newNodeGroup, prevNodeGroups, isCtrl);
+        mergedIdList = sub_findoverlappedNodeGroups(newNodeGroup, oldNodeGroups, isCtrl);
         // merge node groups into new merged node group
-        newNodeGroup = sub_mergeNodeGroups(newNodeGroup, prevNodeGroups, mergedIdList);
+        newNodeGroup = sub_mergeNodeGroups(newNodeGroup, oldNodeGroups, mergedIdList);
         newNodeGroup = sub_identifyPosType(newNodeGroup);
     }
     
-    // remove prev. node groups and add new merged node group
-    prevNodeGroups = sub_removeKeys(prevNodeGroups,mergedIdList)
-    prevNodeGroups[newNodeGroup.nodeId] = newNodeGroup;
+    // remove old. node groups and add new merged node group
+    oldNodeGroups = sub_removeKeys(oldNodeGroups,mergedIdList)
+    oldNodeGroups[newNodeGroup.nodeId] = newNodeGroup;
     prjManager.data.typeMap = {...prjManager.data.typeMap, ...newNodeGroup.posMap};
 
-    prjManager.data.nodeGroups = prevNodeGroups;
+    prjManager.data.nodeGroups = oldNodeGroups;
 
     return
 }
@@ -269,8 +272,8 @@ function sub_identifyPosType(nodeGroup) {
     let posMap = {};
     function sub_addPoint(nodeId, key, newDirection, terminalPositionId, posMap) {
         if (key in posMap) {
-            let prevDirection = posMap[key];
-            newDirection = prevDirection.map((val, index) => val || newDirection[index]);
+            let oldDirection = posMap[key];
+            newDirection = oldDirection.map((val, index) => val || newDirection[index]);
         }
         if (terminalPositionId.includes(key)) elementType = 'terminal';
         else elementType = 'node';
@@ -311,7 +314,7 @@ function sub_identifyPosType(nodeGroup) {
     return nodeGroup;
 }
 
-function sub_findoverlappedNodeGroups(newNodeGroup, prevNodeGroups,isCtrl) {    
+function sub_findoverlappedNodeGroups(newNodeGroup, oldNodeGroups,isCtrl) {    
     
     function sub_hasCommonElement(A, B) {
         const setB = new Set(B); 
@@ -322,14 +325,14 @@ function sub_findoverlappedNodeGroups(newNodeGroup, prevNodeGroups,isCtrl) {
 
     if (isCtrl) { // nodegroup w/ any duplicate position Id
         let newPositionId = Object.keys(newNodeGroup.posMap);
-        for (key in prevNodeGroups) {
-            let prevPositionId = Object.keys(prevNodeGroups[key].posMap);
-            if (sub_hasCommonElement(newPositionId,prevPositionId)) mergedIdList.push(key);
+        for (key in oldNodeGroups) {
+            let oldPositionId = Object.keys(oldNodeGroups[key].posMap);
+            if (sub_hasCommonElement(newPositionId,oldPositionId)) mergedIdList.push(key);
         }
     } else {
         let newPosMap = newNodeGroup.posMap;        
-        for (key in prevNodeGroups) {
-            let prevPosMap = prevNodeGroups[key].posMap;
+        for (key in oldNodeGroups) {
+            let oldPosMap = oldNodeGroups[key].posMap;
 
             isMerged = false;
             for (newPos in newPosMap) {
@@ -339,31 +342,31 @@ function sub_findoverlappedNodeGroups(newNodeGroup, prevNodeGroups,isCtrl) {
                 let newIsVertical = !newDirection[0] & newDirection[1] & !newDirection[2] & newDirection[3];
                 let newIsHorizontal = newDirection[0] & !newDirection[1] & newDirection[2] & !newDirection[3];
                 
-                if (!newPos in prevPosMap) continue;                
-                let prevPosInfo = prevPosMap[newPos];
-                let prevDirection = prevPosInfo.positionType;
-                let prevIsVertical = !prevDirection[0] & prevDirection[1] & !prevDirection[2] & prevDirection[3];
-                let prevIsHorizontal = prevDirection[0] & !prevDirection[1] & prevDirection[2] & !prevDirection[3];
-                if ( !((newIsVertical & prevIsHorizontal) || (newIsHorizontal & prevIsVertical)) ) {
+                if (!(newPos in oldPosMap)) continue;                
+                let oldPosInfo = oldPosMap[newPos];
+                let oldDirection = oldPosInfo.positionType;
+                let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
+                let oldIsHorizontal = oldDirection[0] & !oldDirection[1] & oldDirection[2] & !oldDirection[3];
+                if ( !((newIsVertical & oldIsHorizontal) || (newIsHorizontal & oldIsVertical)) ) {
                     isMerged = true;
                     break
                 }                    
             }
-            if (isMerged) mergedIdList.push(prevNodeGroups[key].nodeId);
+            if (isMerged) mergedIdList.push(oldNodeGroups[key].nodeId);
         }
     }
     return mergedIdList
 }
 
-function sub_mergeNodeGroups(newNodeGroup, prevNodeGroups, mergedIdList) {
+function sub_mergeNodeGroups(newNodeGroup, oldNodeGroups, mergedIdList) {
 
     let elementIdList = newNodeGroup.elementIdList;
     let segmentList = newNodeGroup.segmentList;
     let terminalPositionId = newNodeGroup.terminalPositionId;
     let shapeMerged = newNodeGroup.shapeMerged;
 
-    for (let key of Object.keys(prevNodeGroups)) {
-        let nodeGroup = prevNodeGroups[key];
+    for (let key of Object.keys(oldNodeGroups)) {
+        let nodeGroup = oldNodeGroups[key];
         if (!mergedIdList.includes(nodeGroup.nodeId)) continue;
         elementIdList = [...elementIdList, ...nodeGroup.elementIdList];
         segmentList = [...segmentList, ...nodeGroup.segmentList];
@@ -463,10 +466,10 @@ function sub_shiftShapeMerged(shape, shapeN, offset) {
 function sub_shiftShape(shape, offset) {
     if (!shape) return [];
     if (shape.length === 0) return [];
-    let [mouseX,mouseY] = offset
+    let [offsetX,offsetY] = offset
     const [shapeX, shapeY] = shape;
-    const Xdata = shapeX.map((val) => val === null ? null : val + mouseX);
-    const Ydata = shapeY.map((val) => val === null ? null : val + mouseY);
+    const Xdata = shapeX.map((val) => val === null ? null : val + offsetX);
+    const Ydata = shapeY.map((val) => val === null ? null : val + offsetY);
     return [Xdata, Ydata]
 }
 
@@ -495,15 +498,17 @@ function sub_modifyLine(prjManager, lineName, property) {
     targetIndex = prjManager.plotObject.lineDataMap[lineName];
     if (Array.isArray(property)) {
         if (property.length === 0) {
-            property = {x:[[]], y:[[]]}
+            property = {x:[[]], y:[[]]};
         } else {
-            property = {x: [property[0]], y: [property[1]]}
+            let x = property[0];
+            let y = property[1];
+            property = {x: [x], y: [y]};
         }        
     }
     prjManager.plotObject.Plotly.restyle('canvas', property, targetIndex);
 }
 
-function sub_generateNodeLine(startingXY, endingXY, XYContinuous, prjManager) { // only horizontal or vertical nodeline allowed
+function sub_generateNodeLine(startingXY, endingXY, XYContinuous, prjManager) { // only horizontal or vertical node allowed
 
     let deltaX = Math.abs(startingXY[0] - XYContinuous[0]);
     let deltaY = Math.abs(startingXY[1] - XYContinuous[1]);
