@@ -34,6 +34,10 @@ const prjManager = {
         hoverPointContinuous: [], // element hover x,y points (continuous)
         isCtrl: false, // ctrl key pressed
         selectedIdList:[],
+    },    
+    clipboard:{
+        copiedElements:{},
+        centerPosition:[null,null],
     },
     canvasProperty: {
         pixelsPerUnit: 30, // default pixels per unit (grid)
@@ -66,6 +70,8 @@ const prjManager = {
             keydown: (event) => {
                 if (event.ctrlKey && !prjManager.uiStatus.isCtrl) { 
                     setCtrlStatus(event, prjManager,'press');
+                }
+                else if (prjManager.uiStatus.isCtrl) {
                     if (event.key === 'c' || event.key === 'x') { copyElement(event,prjManager) } 
                     else if (event.key === 'v') { pasteElement(event,prjManager) } 
                     else if (event.key === 's') { saveProject(event,prjManager) } 
@@ -94,6 +100,8 @@ const prjManager = {
             keydown: (event) => {
                 if (event.ctrlKey && !prjManager.uiStatus.isCtrl) { 
                     setCtrlStatus(event, prjManager,'press');
+                }
+                else if (prjManager.uiStatus.isCtrl) {
                     if (event.key === 's') { saveProject(event,prjManager) } 
                 }
                 else if (event.key === 'r') { rotateElement(event,prjManager) }
@@ -165,62 +173,61 @@ const prjManager = {
 // Class definition ==============================================================================================================
 // ===============================================================================================================================
 
-
 const ElementTemplate = {
     elementName:'',
     elementId:'',
     elementStatus:'normal',
-    centerPosition:[],
-    offset:[],  
-    realPosition:[],
     rotateCount:0,
     flipCount:0,
+    slaveIds:[],
+
+    centerPosition:[], // pos
+    offsetPosition:[], // pos
+    renderedLineXY:[], // XY
+    renderedMarkerXY:[], // XY
+
     relative:{
         shape:null,
         shapeN:null,
-        terminal:[], // ?
     },
-    slave:[],
-    shape:[],
-    marker:[],
+
     posMap:{}
 };
 
 const NodeTemplate = {
     elementName:'',
     elementId:'',
-    elementStatus:'normal',
-    centerPosition:[],
-    segments:[],    
-    shape:[],
-    terminals:[],
-    marker:[],
+    elementStatus:'normal', 
+    terminalIds:[],
+
+    centerPosition:[], // pos
+    offsetSegments:[], // segments
+    renderedLineXY:[], // XY
+    renderedMarkerXY:[], // XY
+
+    segments:[],   
+
     posMap:{},
-    isObsolete:false,
 };
 
 const TerminalTemplate = {
     elementName:'terminal',
     elementId:'',
     elementStatus:'normal',
-    centerPosition:[],
-    offset:[],  
-    realPosition:[],
-    marker:[],
-    shape:[],
-    nodeGroup:[],
-    master:[],
+    masterId:[],
+
+    centerPosition:[], // pos
+    offsetPosition:[], // pos
+    renderedLineXY:[], // XY
+    renderedMarkerXY:[], // XY
+
     posMap:{},
 };
 
 class Element {
 
     static shift(element,XY) {
-
-        let [offsetX,offsetY] = sub_pos2XY(element.offset);
-        element.centerPosition = sub_XY2pos(XY);
-        element.realPosition = sub_XY2pos([XY[0]+offsetX,XY[1]+offsetY]);
-        
+        element.centerPosition = sub_XY2pos(XY);        
         this.renderShape(element);
     }
 
@@ -235,8 +242,8 @@ class Element {
         element.relative.shape = [Xr,Yr];
 
         // rotate offset
-        let [offsetX,offsetY] = sub_pos2XY(element.offset);
-        element.offset = sub_XY2pos([-offsetY, offsetX]);
+        let [offsetX,offsetY] = sub_pos2XY(element.offsetPosition);
+        element.offsetPosition = sub_XY2pos([-offsetY, offsetX]);
 
         this.renderShape(element);
     }
@@ -250,8 +257,8 @@ class Element {
         element.relative.shape = [X,Y];
         
         // flip offset
-        let [offsetX,offsetY] = sub_pos2XY(element.offset);
-        element.offset = sub_XY2pos([-offsetX, offsetY]);
+        let [offsetX,offsetY] = sub_pos2XY(element.offsetPosition);
+        element.offsetPosition = sub_XY2pos([-offsetX, offsetY]);
 
         this.renderShape(element);
     }
@@ -261,10 +268,9 @@ class Element {
         let shape = element.relative.shape;  
         let shapeN = element.relative.shapeN; 
         let centerPosition = sub_pos2XY(element.centerPosition);
-        let offset = sub_pos2XY(element.offset); 
+        let offset = sub_pos2XY(element.offsetPosition); 
         let realPosition = [centerPosition[0]+offset[0] , centerPosition[1]+offset[1]];
-        element.realPosition = sub_XY2pos(realPosition);
-        element.shape = sub_shiftShapeMerged(shape, shapeN, realPosition); 
+        element.renderedLineXY = sub_shiftShapeMerged(shape, shapeN, realPosition); 
 
         let posMap = {};
         posMap[realPosition] = {elementId:element.elementId, elementType:'element',positionType:''}
@@ -272,39 +278,33 @@ class Element {
     }
 };
 
-
 class Terminal {
 
-    static shift(element,XY) {
-        
-        let [offsetX,offsetY] = sub_pos2XY(element.offset);
-        element.centerPosition = sub_XY2pos(XY);
-        element.realPosition = sub_XY2pos([XY[0]+offsetX,XY[1]+offsetY]);
-        
+    static shift(element,XY) {        
+        element.centerPosition = sub_XY2pos(XY);        
         this.renderShape(element);
     }
     
     static rotate(element) { 
         // rotate offset
-        let [offsetX,offsetY] = sub_pos2XY(element.offset);
-        element.offset = sub_XY2pos([-offsetY, offsetX]);
+        let [offsetX,offsetY] = sub_pos2XY(element.offsetPosition);
+        element.offsetPosition = sub_XY2pos([-offsetY, offsetX]);
         this.renderShape(element);
     }
 
     static flip(element) {
         // flip offset
-        let [offsetX,offsetY] = sub_pos2XY(element.offset);
-        element.offset = sub_XY2pos([-offsetX, offsetY]);
+        let [offsetX,offsetY] = sub_pos2XY(element.offsetPosition);
+        element.offsetPosition = sub_XY2pos([-offsetX, offsetY]);
         this.renderShape(element);
     }
 
     static renderShape(element) {
 
         let centerPosition = sub_pos2XY(element.centerPosition);
-        let offset = sub_pos2XY(element.offset);   
+        let offset = sub_pos2XY(element.offsetPosition);   
         let realPosition = [centerPosition[0]+offset[0] , centerPosition[1]+offset[1]];     
-        element.realPosition = sub_XY2pos(realPosition);
-        element.marker = [[centerPosition[0]+offset[0]], [centerPosition[1]+offset[1]]];
+        element.renderedMarkerXY = [[centerPosition[0]+offset[0]], [centerPosition[1]+offset[1]]];
 
         let posMap = {};
         posMap[realPosition] = {elementId:element.elementId, elementType:'terminal',positionType:[false,false,false,false]}
@@ -321,7 +321,7 @@ class Node {
         element.posMap = posMap;
     };
 
-    static shift(element,startingXY,endingXY,continuousXY) {
+    static shiftEnd(element,startingXY,endingXY,continuousXY) {
 
         let deltaX = Math.abs(startingXY[0] - continuousXY[0]);
         let deltaY = Math.abs(startingXY[1] - continuousXY[1]);
@@ -344,6 +344,31 @@ class Node {
         this.renderShape(element);
     };
 
+    static shift(element,XY) {
+        element.centerPosition = sub_XY2pos(XY);
+        this.renderSegment(element);
+    };
+
+    static rotate(element) {
+        // rotate offset segment
+        element.offsetSegments = element.offsetSegments.map(segment => [[-segment[0][1],segment[0][0]], [-segment[1][1],segment[1][0]]]);
+        
+        this.renderSegment(element);
+    };
+
+    static flip(element) {
+        // flip offset segment
+        element.offsetSegments = element.offsetSegments.map(segment => [[-segment[0][0],segment[0][1]], [-segment[1][0],segment[1][1]]]);
+        
+        this.renderSegment(element);
+    };
+
+    static renderSegment(element) {        
+        let XY = sub_pos2XY(element.centerPosition);
+        element.segments = element.offsetSegments.map(val => [[val[0][0]+XY[0],val[0][1]+XY[1]], [val[1][0]+XY[0],val[1][1]+XY[1]]]);        
+        this.renderShape(element);
+    }
+
     static renderShape(element){ // identify shape and posmap w/ position classification
 
         function sub_addPoint(nodeId, key, newDirection, terminalPositionId, posMap) {
@@ -359,7 +384,7 @@ class Node {
         }
 
         let segments = element.segments;
-        let terminals = element.terminals;
+        let terminalIds = element.terminalIds;
         let nodeId = element.elementId;
     
         let posMap = {};
@@ -383,7 +408,7 @@ class Node {
                     else if (Math.abs(x-end)<0.5) direction = [false,false,true,false];
                     else direction = [true,false,true,false];
                     let key = sub_XY2pos([x,y1]);
-                    posMap = sub_addPoint(nodeId, key, direction, terminals, posMap);
+                    posMap = sub_addPoint(nodeId, key, direction, terminalIds, posMap);
                 }
             } else { // vertical segment
                 const start = Math.min(y1, y2);
@@ -394,7 +419,7 @@ class Node {
                     else if (Math.abs(y-end)<0.5) direction = [false,false,false,true];
                     else direction = [false,true,false,true];
                     let key = sub_XY2pos([x1,y]);
-                    posMap = sub_addPoint(nodeId, key, direction, terminals, posMap);
+                    posMap = sub_addPoint(nodeId, key, direction, terminalIds, posMap);
                 }
             }
         }
@@ -407,9 +432,10 @@ class Node {
         }
         joint = sub_pos2XY(joint);
     
-        element.shape = shape;
-        element.marker = joint;
+        element.renderedLineXY = shape;
+        element.renderedMarkerXY = joint;
         element.posMap = posMap;
+        
 
     };
 };

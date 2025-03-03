@@ -26,7 +26,6 @@ function sub_pos2XY(pos) {
     }    
 }
 
-
 function sub_checkOverlap(prjManager) {
     // canvas range limit check
     const XY = prjManager.uiStatus.hoverPoint;
@@ -124,90 +123,6 @@ function sub_checkNodeGroups(elements,isCtrl){
         groups[root].push(key);
     }
     return Object.values(groups);
-}
-
-function sub_createNodeObject(prjManager) {
-    
-    let elementObjSet = {};   
-    let idMapObj = {};
-    let typeMapObj = prjManager.data.typeMap;
-
-    // node object
-    prjManager.data.counter += 1; 
-    const elementName = prjManager.createElement.name;
-    const paraNames = prjManager.circuitData.element[elementName].paraNames;
-    const shapeMerged = prjManager.createElement.node.shape;
-    const posIds = prjManager.createElement.node.posIds;
-    let elementObj = {
-        elementId: 'elementId'+prjManager.data.counter,
-        positionId: posIds,
-        name: elementName,
-        shapeMerged: shapeMerged,
-        paraNames: paraNames,
-        paraValues: null,
-        elementStatus: 'normal',
-    };
-    elementObjSet[elementObj.elementId] = elementObj;
-    prjManager.data.elements = {...prjManager.data.elements, ...elementObjSet}
-
-    // create nodeGroup
-    sub_createNodeGroups(elementObj, prjManager);
-
-}
-
-function sub_createElementObject(prjManager) {
-
-    let elementObjSet = {};   
-    let typeMapObj = prjManager.data.typeMap;
-    prjManager.data.counter += 1; 
-
-    // main element object
-    const elementName = prjManager.createElement.name;
-    const XY = prjManager.uiStatus.hoverPoint;
-    const shape = prjManager.createElement.shape;
-    const shapeN = prjManager.createElement.shapeN;
-    const shapeMerged = sub_shiftShapeMerged(shape, shapeN, XY);
-    const terminal = prjManager.createElement.terminal;
-    const terminalShifted = sub_shiftShapeMerged(terminal, [], XY);
-    const nTerminal = terminal[0].length
-    const paraNames = prjManager.circuitData.element[elementName].paraNames;
-    const createSlaveId = (n, m) => Array.from({ length: n }, (_, i) => m + i + 1);
-
-    const masterId = prjManager.data.counter;
-    let elementObj = {
-        elementId: 'elementId'+prjManager.data.counter,
-        positionId: [sub_XY2pos(XY)],
-        name: elementName,
-        polarity: prjManager.createElement.polarity,
-        rotation: prjManager.createElement.rotation,
-        shapeMerged: shapeMerged,
-        paraNames: paraNames,
-        paraValues: null,
-        elementStatus: 'nopara',
-        slaveId: createSlaveId(nTerminal, prjManager.data.counter),
-    };
-    elementObjSet[elementObj.elementId] = elementObj;
-    typeMapObj = sub_mapXYToId(typeMapObj, elementObj.positionId, elementObj.Id, 'element','');
-    prjManager.data.typeMap = typeMapObj;
-
-    // terminal objects (slaves)
-    for (let i = 0; i < nTerminal; i++) {
-        let terminalXY = [[terminalShifted[0][i]], [terminalShifted[1][i]]]
-        prjManager.data.counter += 1;
-        let elementObj = {
-            elementId: 'elementId'+prjManager.data.counter,
-            positionId: [sub_XY2pos(terminalXY)],
-            name: 'terminal',
-            elementStatus: 'normal',
-            shapeMerged: [],
-            masterId:masterId,
-        };
-        elementObjSet[elementObj.elementId] = elementObj;
-
-        // create nodeGroup
-        sub_createNodeGroups(elementObj, prjManager);
-    }    
-    prjManager.data.elements = {...prjManager.data.elements, ...elementObjSet}
 }
 
 function sub_removeKeys(obj,keys) {
@@ -387,7 +302,7 @@ function sub_mergeNodes(elements,representativeId,otherIdList) {
     for (let elementId of otherIdList) {
         let otherNode = elements[elementId];
         mergedNode.segments.push(...otherNode.segments);
-        mergedNode.terminals.push(...otherNode.terminals);
+        mergedNode.terminalIds.push(...otherNode.terminalIds);
     };
     Node.renderShape(mergedNode);
     return mergedNode;

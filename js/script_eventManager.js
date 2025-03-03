@@ -7,9 +7,7 @@ function setCtrlStatus(event, prjManager,option) {
         prjManager.uiStatus.isCtrl = true;
     } else {
         prjManager.uiStatus.isCtrl = false;
-    }
-
-    
+    }    
     if (prjManager.mode === 'create') hoverElement(prjManager,isRendering=true);
 }
 
@@ -52,15 +50,15 @@ function canvasDrag(event,prjManager,opt) {
             sub_modifyLine(prjManager,'lineHover',[]);
             sub_modifyLine(prjManager,'markerHover',[]);
         } else {
-            let lineHover = targetElement.shape;
-            let markerHover = targetElement.marker;
+            let lineHover = targetElement.renderedLineXY;
+            let markerHover = targetElement.renderedMarkerXY;
             if (targetElement.elementName === 'node') {
-                for (let terminalId of targetElement.terminals) {                    
-                    markerHover = sub_concatXYs(markerHover,elements[terminalId].marker);
+                for (let terminalId of targetElement.terminalIds) {                    
+                    markerHover = sub_concatXYs(markerHover,elements[terminalId].renderedMarkerXY);
                 }
             } else if (targetElement.elementName !== 'terminal') {
-                for (let terminalId of targetElement.slave) {       
-                    markerHover = sub_concatXYs(markerHover,elements[terminalId].marker);
+                for (let terminalId of targetElement.slaveIds) {       
+                    markerHover = sub_concatXYs(markerHover,elements[terminalId].renderedMarkerXY);
                 }
             }
             sub_modifyLine(prjManager,'lineHover',lineHover);
@@ -110,16 +108,16 @@ function canvasDrag(event,prjManager,opt) {
             for (const elementId of selectedIdList) {
                 let selectedElement = elementsObj[elementId];
                 if (selectedElement.elementName === 'node') {
-                    for (let terminalId of selectedElement.terminals) {                    
-                        markerSelect = sub_concatXYs(markerSelect,elements[terminalId].marker);
+                    for (let terminalId of selectedElement.terminalIds) {                    
+                        markerSelect = sub_concatXYs(markerSelect,elements[terminalId].renderedMarkerXY);
                     }
                 } else if (selectedElement.elementName !== 'terminal') {
-                    for (let terminalId of selectedElement.slave) {       
-                        markerSelect = sub_concatXYs(markerSelect,elements[terminalId].marker);
+                    for (let terminalId of selectedElement.slaveIds) {       
+                        markerSelect = sub_concatXYs(markerSelect,elements[terminalId].renderedMarkerXY);
                     }
                 }
-                lineSelect = sub_concatXYs(lineSelect,selectedElement.shape);
-                markerSelect = sub_concatXYs(markerSelect,selectedElement.marker);
+                lineSelect = sub_concatXYs(lineSelect,selectedElement.renderedLineXY);
+                markerSelect = sub_concatXYs(markerSelect,selectedElement.renderedMarkerXY);
             };
             sub_modifyLine(prjManager,'lineSelect',lineSelect);
             sub_modifyLine(prjManager,'markerSelect',markerSelect);
@@ -141,6 +139,8 @@ hotkeyObj = {
     't':'text',
 }
 function selectElement(event,prjManager) {
+    sub_modifyLine(prjManager,'lineSelect',[]);
+    sub_modifyLine(prjManager,'markerSelect',[]);
 
     let elementName
     if (event.type=='keydown') {
@@ -180,14 +180,13 @@ function selectElement(event,prjManager) {
         currentElement.elementName = elementName;
         currentElement.elementId = elementId;
         currentElement.elementStatus = 'nopara';
-        currentElement.offset = sub_XY2pos([0,0]);
+        currentElement.offsetPosition = sub_XY2pos([0,0]);
         currentElement.polarity = elementDefault.polarity;
         currentElement.rotation = elementDefault.rotation;
         currentElement.relative.shape = elementDefault.shape;
         currentElement.relative.shapeN = elementDefault.shapeN;
         currentElement.relative.terminal = elementDefault.terminal;
         
-
         prjManager.tempData.elements = {};
         prjManager.tempData.elements[elementId] = currentElement;
         prjManager.tempData.currentMode = 'element';
@@ -198,15 +197,15 @@ function selectElement(event,prjManager) {
             let terminalElementId = 'eid'+prjManager.data.counter;
             let currentTerminal = structuredClone(TerminalTemplate);
             currentTerminal.elementId = terminalElementId;
-            currentTerminal.master = elementId;            
-            currentElement.slave.push(terminalElementId);
+            currentTerminal.masterId = elementId;            
+            currentElement.slaveIds.push(terminalElementId);
 
             let [X,Y] = [0,0];
             if (terminalIndex === 0) X=X+2;
             else if (terminalIndex === 1) Y=Y+2;
             else if (terminalIndex === 2) X=X-2;
-            else if(terminalIndex === 3) Y=Y-2;
-            currentTerminal.offset = sub_XY2pos([X,Y]);
+            else if (terminalIndex === 3) Y=Y-2;
+            currentTerminal.offsetPosition = sub_XY2pos([X,Y]);
             prjManager.tempData.elements[terminalElementId] = currentTerminal;
         }
         
@@ -260,9 +259,9 @@ function hoverElement(prjManager,isRendering=false) {
         // node shift by XY
         for (let key in tempElements) {
             element = tempElements[key];
-            Node.shift(element,startingXY,XY,continuousXY);
+            Node.shiftEnd(element,startingXY,XY,continuousXY);
             endingXY = element.segments[0][1];
-            hoverShape = sub_concatXYs(hoverShape, element.shape);
+            hoverShape = sub_concatXYs(hoverShape, element.renderedLineXY);
         }
         
         let hoverShapeCircle = sub_shiftShape(nodePointerShape, endingXY); 
@@ -270,21 +269,22 @@ function hoverElement(prjManager,isRendering=false) {
 
     } else { // normal element
         
-        const tempElements = prjManager.tempData.elements;
-        
+        const tempElements = prjManager.tempData.elements;    
+
         // element shift by XY        
         for (let key in tempElements) {
             element = tempElements[key];
             if (element.elementName === 'terminal') {
                 Terminal.shift(element,XY);
-                hoverShape = sub_concatXYs(hoverShape, element.marker);
+                hoverShape = sub_concatXYs(hoverShape, element.renderedMarkerXY);
+            } else if (element.elementName === 'node') {
+                Node.shift(element,XY);
+                hoverShape = sub_concatXYs(hoverShape, element.renderedLineXY);
             } else {
                 Element.shift(element,XY);
-                hoverShape = sub_concatXYs(hoverShape, element.shape);
+                hoverShape = sub_concatXYs(hoverShape, element.renderedLineXY);
             }
-            
-        }
-        
+        }        
     }   
 
     // validity check
@@ -306,8 +306,8 @@ function hoverElement(prjManager,isRendering=false) {
         let elementsObj = prjManager.data.elements;
         for (const elementId of overlappedIdList) {
             let element = elementsObj[elementId];
-            lineRelevant = sub_concatXYs(lineRelevant,element.shape);
-            markerRelevant = sub_concatXYs(markerRelevant,element.marker);
+            lineRelevant = sub_concatXYs(lineRelevant,element.renderedLineXY);
+            markerRelevant = sub_concatXYs(markerRelevant,element.renderedMarkerXY);
         };
         sub_modifyLine(prjManager,'lineRelevant',lineRelevant);
         sub_modifyLine(prjManager,'markerRelevant',markerRelevant);
@@ -362,11 +362,10 @@ function createElement(event,prjManager) {
     deleteIdList.forEach(key => delete elements[key]);
 
     // terminal merge to node
-
     for (let nodeKey in elements) {
         let node = elements[nodeKey];
         if (node.elementName != 'node') continue;
-        node.terminals = [];
+        node.terminalIds = [];
 
         for (let terminalKey in elements) {
             let terminal = elements[terminalKey];
@@ -374,17 +373,21 @@ function createElement(event,prjManager) {
 
             let terminalPos = Object.keys(terminal.posMap)[0];
             if (!(terminalPos in node.posMap)) continue;
-            node.terminals.push(terminal.elementId);
+            node.terminalIds.push(terminal.elementId);
         }        
     }
 
-
     // temp data id update
+    const nElements = Object.keys(tempElements).length;
     const newtempElements = {};
+    prjManager.data.counter = prjManager.data.counter + nElements;
+    const updateId = (id, nElm) => 'eid'+String(Number(id.split('eid')[1])+nElm);
     for (let key in tempElements) {
-        prjManager.data.counter = prjManager.data.counter + 1;
         let element = tempElements[key];
-        let newKey = 'eid'+prjManager.data.counter;
+        if ('slaveIds' in element) element.slaveIds = element.slaveIds.map(val => updateId(val,nElements));
+        if ('terminalIds' in element) element.terminalIds = element.terminalIds.map(val => updateId(val,nElements));
+        if ('masterId' in element) element.masterId = updateId(element.masterId,nElements);
+        let newKey = updateId(key,nElements);
         element.elementId = newKey;
         newtempElements[newKey] = element;
     } 
@@ -404,16 +407,16 @@ function createElement(event,prjManager) {
         let element = elements[elementId];
         
         if (element.elementName === 'terminal') {
-            markerNormal = sub_concatXYs(markerNormal,element.marker);
+            markerNormal = sub_concatXYs(markerNormal,element.renderedMarkerXY);
         } else if (element.elementName === 'node') {
-            lineNormal = sub_concatXYs(lineNormal,element.shape);
+            lineNormal = sub_concatXYs(lineNormal,element.renderedLineXY);
         } else {
             if (element.elementStatus == 'normal') {
-                lineNormal = sub_concatXYs(lineNormal,element.shape);
+                lineNormal = sub_concatXYs(lineNormal,element.renderedLineXY);
             } else if (element.elementStatus == 'error') {
-                lineError = sub_concatXYs(lineError,element.shape);
+                lineError = sub_concatXYs(lineError,element.renderedLineXY);
             } else if (element.elementStatus == 'nopara') {
-                lineNoPara = sub_concatXYs(lineNoPara,element.shape);
+                lineNoPara = sub_concatXYs(lineNoPara,element.renderedLineXY);
             }
         }
          // main element shape line, polarity line
@@ -430,8 +433,6 @@ function createElement(event,prjManager) {
 
     // hover rendering
     hoverElement(prjManager,isRendering=true) 
-    console.log(prjManager.data.elements)
-
 
     // delta calc for undo/redo
     //
@@ -473,10 +474,101 @@ function deleteElement(event,prjManager) {
 // XXX
 function copyElement(event,prjManager) {
 
+    if (prjManager.uiStatus.selectedIdList.length === 0) return;
+
+    
+    // filter Id List
+    let validSelectedIdList = [];
+    for (let elementId of prjManager.uiStatus.selectedIdList) {
+        let element = prjManager.data.elements[elementId];
+        if (element.elementName == 'terminal') continue;
+        validSelectedIdList.push(elementId);
+        if ((element.elementName != 'node') && (element.elementName != 'terminal')) {
+            for (let terminalId of element.slaveIds) {
+                validSelectedIdList.push(terminalId);
+            }
+        }
+    }
+    if (validSelectedIdList.length === 0) return;
+
+    // copy elements and update ids
+    let copiedElements = {};
+    let [Xmin,Xmax,Ymin,Ymax] = [Infinity,-Infinity,Infinity,-Infinity];
+    let elementIdMap = {};
+    for (let elementId of validSelectedIdList) {
+        let element = prjManager.data.elements[elementId];
+        prjManager.data.counter += 1;
+        let newId = 'eid'+prjManager.data.counter;
+        elementIdMap[elementId] = newId;
+
+        copiedElements[newId] = structuredClone(element);
+        copiedElements[newId].elementId = newId;
+
+        // calc center position
+        if (element.elementName === 'terminal') continue;
+        let [X,Y] = sub_pos2XY(Object.keys(element.posMap));
+        let currentXmax,currentXmin,currentYmax,currentYmin;
+        if (Array.isArray(X)) {
+            currentXmax = Math.max(...X);
+            currentXmin = Math.min(...X);
+            currentYmax = Math.max(...Y);
+            currentYmin = Math.min(...Y);
+        } else {
+            currentXmax = X;
+            currentXmin = X;
+            currentYmax = Y;
+            currentYmin = Y;
+        }
+        if (currentXmax > Xmax) Xmax = currentXmax;
+        if (currentXmin < Xmin) Xmin = currentXmin;
+        if (currentYmax > Ymax) Ymax = currentYmax;
+        if (currentYmin < Ymin) Ymin = currentYmin;
+    }
+
+    let groupCenterXY = [Math.round((Xmax+Xmin-2)/4)*2,Math.round((Ymax+Ymin-2)/4)*2];
+    prjManager.clipboard.copiedElements = copiedElements;
+    prjManager.clipboard.centerPosition = sub_XY2pos(groupCenterXY);
+   
+    // update related ids and update center position
+    const filterAndMap = (array, mapObj) => array.filter(a => a in mapObj).map(a => mapObj[a]);
+    for (let elementId in copiedElements) {
+        let element = copiedElements[elementId];
+        if ('slaveIds' in element) element.slaveIds = filterAndMap(element.slaveIds,elementIdMap);
+        if ('terminalIds' in element) element.terminalIds = filterAndMap(element.terminalIds,elementIdMap);
+        if ('masterId' in element) element.masterId = elementIdMap[element.masterId];
+
+        if (element.elementName === 'node') {
+            element.offsetSegments = element.segments.map(val => [[val[0][0]-groupCenterXY[0],val[0][1]-groupCenterXY[0]], [val[1][0]-groupCenterXY[0],val[1][1]-groupCenterXY[0]]]);
+
+        } else {
+            let elementCenterXY = sub_pos2XY(element.centerPosition);
+            let offsetXY0 = sub_pos2XY(element.offsetPosition);
+            let offsetXY = [-groupCenterXY[0] + elementCenterXY[0] + offsetXY0[0], -groupCenterXY[1] + elementCenterXY[1] + offsetXY0[1]];
+            element.offsetPosition = sub_XY2pos(offsetXY);
+        }
+    }
+
+    console.log('prj',prjManager)
 }
 
-// XXX
 function pasteElement(event,prjManager) {
+    sub_modifyLine(prjManager,'lineSelect',[]);
+    sub_modifyLine(prjManager,'markerSelect',[]);
+
+    let copiedElements = prjManager.clipboard.copiedElements;
+    if (Object.keys(copiedElements).length === 0) return;
+
+    prjManager.tempData.elements = {...structuredClone(copiedElements)};
+
+
+    // html control : remove / set "btn-clicked" class 
+    document.querySelectorAll('.div-element.btn-clicked').forEach((el) => { el.classList.remove('btn-clicked'); });    
+
+    // set mode to "create mode"
+    prjManager.setMode('create')
+
+    // hover rendering
+    hoverElement(prjManager,isRendering=true)
 
 }
 
