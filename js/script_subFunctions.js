@@ -98,7 +98,6 @@ function sub_checkNodeGroups(elements,isCtrl){
             let newIsHorizontal = newDirection[0] & !newDirection[1] & newDirection[2] & !newDirection[3];
             if (!(newPos in oldPosMap)) continue;      
             if (newPosMap[newPos].elementType === 'element' || oldPosMap[newPos].elementType === 'element') return false;
-            console.log('newPosMap',newPosMap,'oldPosMap',oldPosMap,'newPos',newPos)
             if (!isCtrl && (newPosMap[newPos].elementType === 'node' && oldPosMap[newPos].elementType === 'node')) {
                 let oldDirection = oldPosMap[newPos].positionType;
                 let oldIsVertical = !oldDirection[0] & oldDirection[1] & !oldDirection[2] & oldDirection[3];
@@ -338,8 +337,7 @@ function sub_rerangeCanvas(prjManager) {
     prjManager.plotObject.Plotly.relayout('canvas', {
         'xaxis.range': newXRange,
         'yaxis.range': newYRange
-    });
-
+    });   
 }
 
 function sub_roundXY(prjManager, deg=2, bound=true) {
@@ -529,8 +527,10 @@ function sub_renderRelevantElements(prjManager,relevantElements) {
     }
 }
 
-function sub_renderCreatedElements(prjManager,elements) {
-    
+function sub_renderCreatedElements(prjManager) {
+    let elements = prjManager.data.elements;
+
+
     let lineNormal = [[],[]];
     let lineNoPara = [[],[]];
     let lineError = [[],[]];
@@ -566,4 +566,34 @@ function sub_renderCreatedElements(prjManager,elements) {
     sub_modifyLine(prjManager,'markerNormal',markerNormal)
     sub_modifyLine(prjManager,'markerError',markerError)
 
+}
+
+function sub_renderDefault() {    
+    sub_modifyLine(prjManager,'lineCreateNormal',[]);
+    sub_modifyLine(prjManager,'lineRelevant',[]);
+    sub_modifyLine(prjManager,'markerRelevant',[]);
+    sub_modifyLine(prjManager,'lineSelect',[]);
+    sub_modifyLine(prjManager,'markerSelect',[]);
+    sub_modifyLine(prjManager,'lineHover',[]);
+    sub_modifyLine(prjManager,'markerHover',[]);
+}
+
+function sub_stackUndo(prjManager,isResetRedo = true) {
+    let copiedElements = {...structuredClone(prjManager.data.elements)};
+    let maxStack = prjManager.stack.maxStack;
+    prjManager.stack.undo.push(copiedElements);
+    if (isResetRedo) prjManager.stack.redo = [];
+    if (prjManager.stack.undo.length > maxStack) {
+        prjManager.stack.undo = prjManager.stack.undo.slice(1,maxStack+2);
+    }
+}
+
+function sub_stackRedo(prjManager) {
+    let copiedElements = {...structuredClone(prjManager.data.elements)};
+    let maxStack = prjManager.stack.maxStack;
+    prjManager.stack.redo.push(copiedElements)
+
+    if (prjManager.stack.redo.length > maxStack) {
+        prjManager.stack.redo = prjManager.stack.redo.slice(1,maxStack+2);
+    }
 }

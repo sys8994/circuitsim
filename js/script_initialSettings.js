@@ -39,6 +39,11 @@ const prjManager = {
         copiedElements:{},
         centerPosition:[null,null],
     },
+    stack:{
+        maxStack: 30,
+        undo:[],
+        redo:[],
+    },
     canvasProperty: {
         pixelsPerUnit: 30, // default pixels per unit (grid)
         minPixelsPerUnit: 1,
@@ -75,6 +80,9 @@ const prjManager = {
                     if (event.key === 'c' || event.key === 'x') { copyElement(event,prjManager) } 
                     else if (event.key === 'v') { pasteElement(event,prjManager) } 
                     else if (event.key === 's') { saveProject(event,prjManager) } 
+                    else if (event.key === 'z') { undoData(event,prjManager) } 
+                    else if (event.key === 'x') { cutData(event,prjManager) } 
+                    else if (event.key === 'y') { redoData(event,prjManager) } 
                 }
                 else if (event.key === 'Delete') { deleteElement(event,prjManager) }
                 else if (['1','2','3','4','5','6','7','8','9','0','t'].includes(event.key)) { selectElement(event, prjManager) } // element selection
@@ -103,6 +111,9 @@ const prjManager = {
                 }
                 else if (prjManager.uiStatus.isCtrl) {
                     if (event.key === 's') { saveProject(event,prjManager) } 
+                    else if (event.key === 'z') { undoData(event,prjManager) } 
+                    else if (event.key === 'x') { cutData(event,prjManager) } 
+                    else if (event.key === 'y') { redoData(event,prjManager) } 
                 }
                 else if (event.key === 'r') { rotateElement(event,prjManager) }
                 else if (event.key === 'f') { flipElement(event,prjManager) }
@@ -484,6 +495,7 @@ const layout = {
 };
 const config = {
     displayModeBar: false,
+    doubleClick: false,
 };
 
 // gridlines & boundary

@@ -179,8 +179,6 @@ function selectElement(event,prjManager) {
     // set mode to "create mode"
     prjManager.setMode('create')
 
-    console.log('select mode:', prjManager.tempData.elements)
-
     // hover rendering
     hoverElement(prjManager,isRendering=true)
 }
@@ -263,6 +261,7 @@ function hoverElement(prjManager,isRendering=false) {
 
 function createElement(event,prjManager) {
 
+
     // validity filtering
     if (!prjManager.tempData.isValid) return
 
@@ -276,6 +275,9 @@ function createElement(event,prjManager) {
     } else if (prjManager.tempData.currentMode === 'nodeend') {
         prjManager.tempData.currentMode = 'nodestart';
     }
+
+    // save current element data to undo stack 
+    sub_stackUndo(prjManager);
 
     // register new element & map
     prjManager.data.elements = {...prjManager.data.elements, ...structuredClone(prjManager.tempData.elements)};
@@ -341,16 +343,12 @@ function createElement(event,prjManager) {
     prjManager.tempData.elements = newtempElements;
 
     // created element rendering
-    sub_renderCreatedElements(prjManager,elements)
+    sub_renderCreatedElements(prjManager)
 
     // hover rendering
     hoverElement(prjManager,isRendering=true) 
 
-    console.log(prjManager)
 
-    // delta calc for undo/redo
-    //
-    //
 }
 
 function rotateElement(event,prjManager) {
@@ -382,6 +380,9 @@ function selectOption(event,prjManager) {
 
 function deleteElement(event,prjManager) {
 
+    // save current element data to undo stack 
+    sub_stackUndo(prjManager);
+
     if (prjManager.uiStatus.selectedIdList.length === 0) return;
 
     // filter Id List    
@@ -409,18 +410,10 @@ function deleteElement(event,prjManager) {
     }
 
     // created element rendering
-    sub_renderCreatedElements(prjManager,elements)    
+    sub_renderCreatedElements(prjManager);    
 
-    sub_modifyLine(prjManager,'lineCreateNormal',[]);
-    sub_modifyLine(prjManager,'lineRelevant',[]);
-    sub_modifyLine(prjManager,'markerRelevant',[]);
-    sub_modifyLine(prjManager,'lineSelect',[]);
-    sub_modifyLine(prjManager,'markerSelect',[]);
-    sub_modifyLine(prjManager,'lineHover',[]);
-    sub_modifyLine(prjManager,'markerHover',[]);
-
-    
-
+    // render default
+    sub_renderDefault();
 
 }
 
@@ -479,7 +472,7 @@ function copyElement(event,prjManager) {
         if ('masterId' in element) element.masterId = elementIdMap[element.masterId];
 
         if (element.elementName === 'node') {
-            element.offsetSegments = element.segments.map(val => [[val[0][0]-groupCenterXY[0],val[0][1]-groupCenterXY[0]], [val[1][0]-groupCenterXY[0],val[1][1]-groupCenterXY[0]]]);
+            element.offsetSegments = element.segments.map(val => [[val[0][0]-groupCenterXY[0],val[0][1]-groupCenterXY[1]], [val[1][0]-groupCenterXY[0],val[1][1]-groupCenterXY[1]]]);
 
         } else {
             let elementCenterXY = sub_pos2XY(element.centerPosition);
@@ -511,6 +504,35 @@ function pasteElement(event,prjManager) {
 
 }
 
+function undoData(event,prjManager) {
+    if (prjManager.stack.undo.length === 0) return;
+
+    sub_stackRedo(prjManager);
+
+    let lastIndex = prjManager.stack.undo.length - 1;
+    prjManager.data.elements = {...prjManager.stack.undo[lastIndex]};
+    prjManager.stack.undo = prjManager.stack.undo.slice(0,lastIndex);
+    
+    // created element rendering
+    sub_renderCreatedElements(prjManager);
+    sub_renderDefault();
+
+}
+
+function redoData(event,prjManager) {
+    if (prjManager.stack.redo.length === 0) return;
+
+    sub_stackUndo(prjManager,isResetRedo=false);
+    let lastIndex = prjManager.stack.redo.length - 1;
+    prjManager.data.elements = {...prjManager.stack.redo[lastIndex]};
+    prjManager.stack.redo = prjManager.stack.redo.slice(0,lastIndex);
+    
+    // created element rendering
+    sub_renderCreatedElements(prjManager);
+    sub_renderDefault();
+
+}
+
 // XXX
 function saveProject(event,prjManager) {
 
@@ -520,15 +542,9 @@ function resetMode(event,prjManager) {
     prjManager.mode = 'normal';
     prjManager.resetUiStatus();
     prjManager.resetTempData();
-    sub_modifyLine(prjManager,'lineCreateNormal',[]);
-    sub_modifyLine(prjManager,'lineRelevant',[]);
-    sub_modifyLine(prjManager,'markerRelevant',[]);
-    sub_modifyLine(prjManager,'lineSelect',[]);
-    sub_modifyLine(prjManager,'markerSelect',[]);
-    sub_modifyLine(prjManager,'lineHover',[]);
-    sub_modifyLine(prjManager,'markerHover',[]);
 
-    console.log(prjManager)
+    sub_renderDefault();
+
 }
 
 function canvasResize(_, prjManager) {
