@@ -73,7 +73,6 @@ function sub_checkOverlap(prjManager) {
     return {overlappedIdList: overlappedIdList, isValid: true};;
 }
 
-
 function sub_checkNodeGroups(elements,isCtrl){
     let keys = Object.keys(elements);
     let parent = {}; 
@@ -411,6 +410,8 @@ function sub_concatXYs(XY1, XY2) {
 
 function sub_modifyLine(prjManager, lineName, property) {
     targetIndex = prjManager.plotObject.lineDataMap[lineName];
+    if (!targetIndex) return;
+
     if (Array.isArray(property)) {
         if (property.length === 0) {
             property = {x:[[]], y:[[]]};
@@ -443,4 +444,126 @@ function sub_generateNodeLine(startingXY, endingXY, XYContinuous, prjManager) { 
     }
 
     return [endingXY, posIds];
+}
+
+function sub_filterValidIdList(prjManager) {
+    let validSelectedIdList = [];
+    for (let elementId of prjManager.uiStatus.selectedIdList) {
+        let element = prjManager.data.elements[elementId];
+        if (element.elementName == 'terminal') continue;
+        validSelectedIdList.push(elementId);
+        if ((element.elementName != 'node') && (element.elementName != 'terminal')) {
+            for (let terminalId of element.slaveIds) {
+                validSelectedIdList.push(terminalId);
+            }
+        }
+    }
+    return validSelectedIdList;
+}
+
+function sub_renderHoveredElement(prjManager,hoveredElement) {
+    if (!hoveredElement) {            
+        sub_modifyLine(prjManager,'lineHover',[]);
+        sub_modifyLine(prjManager,'markerHover',[]);
+    } else {
+        let elements = prjManager.data.elements;
+        let lineHover = hoveredElement.renderedLineXY;
+        let markerHover = hoveredElement.renderedMarkerXY;
+        if (hoveredElement.elementName === 'node') {
+            for (let terminalId of hoveredElement.terminalIds) {                    
+                markerHover = sub_concatXYs(markerHover,elements[terminalId].renderedMarkerXY);
+            }
+        } else if (hoveredElement.elementName !== 'terminal') {
+            for (let terminalId of hoveredElement.slaveIds) {       
+                markerHover = sub_concatXYs(markerHover,elements[terminalId].renderedMarkerXY);
+            }
+        }
+        sub_modifyLine(prjManager,'lineHover',lineHover);
+        sub_modifyLine(prjManager,'markerHover',markerHover);
+    }
+}
+
+function sub_renderSelectedElements(prjManager,selectedElements) {
+    if (!selectedElements || selectedElements.length === 0) {
+        sub_modifyLine(prjManager,'lineSelect',[]);
+        sub_modifyLine(prjManager,'markerSelect',[]);
+    } else {
+        let elements = prjManager.data.elements;
+        let lineSelect = [[],[]];
+        let markerSelect = [[],[]];
+        let elementsObj = prjManager.data.elements;
+        for (const elementId of selectedElements) {
+            let selectedElement = elementsObj[elementId];
+            if (selectedElement.elementName === 'node') {
+                for (let terminalId of selectedElement.terminalIds) {                    
+                    markerSelect = sub_concatXYs(markerSelect,elements[terminalId].renderedMarkerXY);
+                }
+            } else if (selectedElement.elementName !== 'terminal') {
+                for (let terminalId of selectedElement.slaveIds) {       
+                    markerSelect = sub_concatXYs(markerSelect,elements[terminalId].renderedMarkerXY);
+                }
+            }
+            lineSelect = sub_concatXYs(lineSelect,selectedElement.renderedLineXY);
+            markerSelect = sub_concatXYs(markerSelect,selectedElement.renderedMarkerXY);
+        };
+        sub_modifyLine(prjManager,'lineSelect',lineSelect);
+        sub_modifyLine(prjManager,'markerSelect',markerSelect);
+    }    
+}
+
+function sub_renderRelevantElements(prjManager,relevantElements) {    
+    if (relevantElements.length === 0) {
+        sub_modifyLine(prjManager,'lineRelevant',[]);
+        sub_modifyLine(prjManager,'markerRelevant',[]);
+    } else {
+        let lineRelevant = [[],[]];
+        let markerRelevant = [[],[]];
+        let elements = prjManager.data.elements;
+        for (const elementId of relevantElements) {
+            let element = elements[elementId];
+            lineRelevant = sub_concatXYs(lineRelevant,element.renderedLineXY);
+            markerRelevant = sub_concatXYs(markerRelevant,element.renderedMarkerXY);
+        };
+        sub_modifyLine(prjManager,'lineRelevant',lineRelevant);
+        sub_modifyLine(prjManager,'markerRelevant',markerRelevant);
+    }
+}
+
+function sub_renderCreatedElements(prjManager,elements) {
+    
+    let lineNormal = [[],[]];
+    let lineNoPara = [[],[]];
+    let lineError = [[],[]];
+    let markerNormal = [[],[]];
+    let markerError = [[],[]];
+    // let polaritylineNormal = [[],[]];
+    // let polaritylineNoPara = [[],[]];
+    // let polaritylineError = [[],[]];
+
+    for (const elementId in elements) {
+        let element = elements[elementId];
+        
+        if (element.elementName === 'terminal') {
+            markerNormal = sub_concatXYs(markerNormal,element.renderedMarkerXY);
+        } else if (element.elementName === 'node') {
+            lineNormal = sub_concatXYs(lineNormal,element.renderedLineXY);
+            markerNormal = sub_concatXYs(markerNormal,element.renderedMarkerXY);
+        } else {
+            if (element.elementStatus == 'normal') {
+                lineNormal = sub_concatXYs(lineNormal,element.renderedLineXY);
+            } else if (element.elementStatus == 'error') {
+                lineError = sub_concatXYs(lineError,element.renderedLineXY);
+            } else if (element.elementStatus == 'nopara') {
+                lineNoPara = sub_concatXYs(lineNoPara,element.renderedLineXY);
+            }
+        }
+         // main element shape line, polarity line
+    }
+
+    sub_modifyLine(prjManager,'lineNormal',lineNormal)
+    sub_modifyLine(prjManager,'lineNoPara',lineNoPara)
+    sub_modifyLine(prjManager,'lineError',lineError)
+    sub_modifyLine(prjManager,'markerNormal',markerNormal)
+    sub_modifyLine(prjManager,'markerError',markerError)
+
 }

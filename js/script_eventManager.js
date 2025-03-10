@@ -21,7 +21,6 @@ function canvasDrag(event,prjManager,opt) {
         prjManager.uiStatus.clickedPoint1 = [X1,Y1]; // Set start point
         prjManager.uiStatus.clickedPoint2 = [X1,Y1]; // Set start point
 
-
     } else if (opt==='drag') {
         let [X1,Y1] = prjManager.uiStatus.clickedPoint1 
         let [X2,Y2] = sub_roundXY(prjManager,deg=0,bound=false) // unbounded mouse drag
@@ -33,7 +32,7 @@ function canvasDrag(event,prjManager,opt) {
         Ymax = Math.max(Y1,Y2);
 
         // drag object range change
-        sub_modifyLine(prjManager,'drag', { x: [[Xmin,Xmax,Xmax,Xmin,Xmin]], y: [[Ymin,Ymin,Ymax,Ymax,Ymin]] });
+        sub_modifyLine(prjManager, 'drag', { x: [[Xmin,Xmax,Xmax,Xmin,Xmin]], y: [[Ymin,Ymin,Ymax,Ymax,Ymin]] });
         
     } else if (opt==='hover') {
         let nowPos = sub_XY2pos(sub_roundXY(prjManager,deg=2,bound=false)) + '';// unbounded mouse drag
@@ -45,25 +44,9 @@ function canvasDrag(event,prjManager,opt) {
             targetElement = elements[elementId];
             if (targetElement.elementName != 'terminal') break;
         }
-        
-        if (!targetElement) {            
-            sub_modifyLine(prjManager,'lineHover',[]);
-            sub_modifyLine(prjManager,'markerHover',[]);
-        } else {
-            let lineHover = targetElement.renderedLineXY;
-            let markerHover = targetElement.renderedMarkerXY;
-            if (targetElement.elementName === 'node') {
-                for (let terminalId of targetElement.terminalIds) {                    
-                    markerHover = sub_concatXYs(markerHover,elements[terminalId].renderedMarkerXY);
-                }
-            } else if (targetElement.elementName !== 'terminal') {
-                for (let terminalId of targetElement.slaveIds) {       
-                    markerHover = sub_concatXYs(markerHover,elements[terminalId].renderedMarkerXY);
-                }
-            }
-            sub_modifyLine(prjManager,'lineHover',lineHover);
-            sub_modifyLine(prjManager,'markerHover',markerHover);
-        }
+
+        // hovered element highlight
+        sub_renderHoveredElement(prjManager,targetElement);
 
     } else {
         let [X1,Y1] = prjManager.uiStatus.clickedPoint1 
@@ -98,30 +81,8 @@ function canvasDrag(event,prjManager,opt) {
         prjManager.uiStatus.selectedIdList = selectedIdList;
 
         // selected elements highlight
-        if (selectedIdList.length === 0) {
-            sub_modifyLine(prjManager,'lineSelect',[]);
-            sub_modifyLine(prjManager,'markerSelect',[]);
-        } else {
-            let lineSelect = [[],[]];
-            let markerSelect = [[],[]];
-            let elementsObj = prjManager.data.elements;
-            for (const elementId of selectedIdList) {
-                let selectedElement = elementsObj[elementId];
-                if (selectedElement.elementName === 'node') {
-                    for (let terminalId of selectedElement.terminalIds) {                    
-                        markerSelect = sub_concatXYs(markerSelect,elements[terminalId].renderedMarkerXY);
-                    }
-                } else if (selectedElement.elementName !== 'terminal') {
-                    for (let terminalId of selectedElement.slaveIds) {       
-                        markerSelect = sub_concatXYs(markerSelect,elements[terminalId].renderedMarkerXY);
-                    }
-                }
-                lineSelect = sub_concatXYs(lineSelect,selectedElement.renderedLineXY);
-                markerSelect = sub_concatXYs(markerSelect,selectedElement.renderedMarkerXY);
-            };
-            sub_modifyLine(prjManager,'lineSelect',lineSelect);
-            sub_modifyLine(prjManager,'markerSelect',markerSelect);
-        }                    
+        sub_renderSelectedElements(prjManager,selectedIdList);
+                
     }
 }
 
@@ -236,7 +197,6 @@ function hoverElement(prjManager,isRendering=false) {
     let hoverShape = [];
     let currentMode = prjManager.tempData.currentMode;
 
-    // const isnode = prjManager.createElement.name === 'node'
     if (currentMode==='nodestart') { // node mode
 
         const nodePointerShape = prjManager.tempData.nodeInfo.shape;
@@ -297,21 +257,8 @@ function hoverElement(prjManager,isRendering=false) {
     sub_modifyLine(prjManager, 'lineCreateNormal', { x: [hoverShape[0]], y: [hoverShape[1]], 'line.color': lineColor});
 
     // relevant element rendering (highlight)
-    if (overlappedIdList.length === 0) {
-        sub_modifyLine(prjManager,'lineRelevant',[]);
-        sub_modifyLine(prjManager,'markerRelevant',[]);
-    } else {
-        let lineRelevant = [[],[]];
-        let markerRelevant = [[],[]];
-        let elementsObj = prjManager.data.elements;
-        for (const elementId of overlappedIdList) {
-            let element = elementsObj[elementId];
-            lineRelevant = sub_concatXYs(lineRelevant,element.renderedLineXY);
-            markerRelevant = sub_concatXYs(markerRelevant,element.renderedMarkerXY);
-        };
-        sub_modifyLine(prjManager,'lineRelevant',lineRelevant);
-        sub_modifyLine(prjManager,'markerRelevant',markerRelevant);
-    }
+    sub_renderRelevantElements(prjManager,overlappedIdList);
+    
 }
 
 function createElement(event,prjManager) {
@@ -393,46 +340,13 @@ function createElement(event,prjManager) {
     } 
     prjManager.tempData.elements = newtempElements;
 
-    // graph obj rendering ==> 나중에 이건 따로 함수로 뺴자-----------------------------------
-    let lineNormal = [[],[]];
-    let lineNoPara = [[],[]];
-    let lineError = [[],[]];
-    let markerNormal = [[],[]];
-    let markerError = [[],[]];
-    // let polaritylineNormal = [[],[]];
-    // let polaritylineNoPara = [[],[]];
-    // let polaritylineError = [[],[]];
-
-    for (const elementId in elements) {
-        let element = elements[elementId];
-        
-        if (element.elementName === 'terminal') {
-            markerNormal = sub_concatXYs(markerNormal,element.renderedMarkerXY);
-        } else if (element.elementName === 'node') {
-            lineNormal = sub_concatXYs(lineNormal,element.renderedLineXY);
-        } else {
-            if (element.elementStatus == 'normal') {
-                lineNormal = sub_concatXYs(lineNormal,element.renderedLineXY);
-            } else if (element.elementStatus == 'error') {
-                lineError = sub_concatXYs(lineError,element.renderedLineXY);
-            } else if (element.elementStatus == 'nopara') {
-                lineNoPara = sub_concatXYs(lineNoPara,element.renderedLineXY);
-            }
-        }
-         // main element shape line, polarity line
-    }
-
-    sub_modifyLine(prjManager,'lineNormal',lineNormal)
-    sub_modifyLine(prjManager,'lineNoPara',lineNoPara)
-    sub_modifyLine(prjManager,'lineError',lineError)
-    sub_modifyLine(prjManager,'markerNormal',markerNormal)
-    sub_modifyLine(prjManager,'markerError',markerError)
-
-
-    // ---------------------------------------------------------------------------------------------------------
+    // created element rendering
+    sub_renderCreatedElements(prjManager,elements)
 
     // hover rendering
     hoverElement(prjManager,isRendering=true) 
+
+    console.log(prjManager)
 
     // delta calc for undo/redo
     //
@@ -466,29 +380,56 @@ function selectOption(event,prjManager) {
 
 }
 
-// XXX
 function deleteElement(event,prjManager) {
-
-}
-
-// XXX
-function copyElement(event,prjManager) {
 
     if (prjManager.uiStatus.selectedIdList.length === 0) return;
 
-    
-    // filter Id List
-    let validSelectedIdList = [];
-    for (let elementId of prjManager.uiStatus.selectedIdList) {
-        let element = prjManager.data.elements[elementId];
-        if (element.elementName == 'terminal') continue;
-        validSelectedIdList.push(elementId);
-        if ((element.elementName != 'node') && (element.elementName != 'terminal')) {
-            for (let terminalId of element.slaveIds) {
-                validSelectedIdList.push(terminalId);
-            }
-        }
+    // filter Id List    
+    let validSelectedIdList = sub_filterValidIdList(prjManager);
+    if (validSelectedIdList.length === 0) return;
+
+    // delete selected elements
+    let elements = prjManager.data.elements;
+    validSelectedIdList.forEach(key => delete elements[key]);
+
+    // terminal delete to node
+    for (let nodeKey in elements) {
+        let node = elements[nodeKey];
+        if (node.elementName != 'node') continue;
+        node.terminalIds = [];
+
+        for (let terminalKey in elements) {
+            let terminal = elements[terminalKey];
+            if (terminal.elementName != 'terminal') continue;
+
+            let terminalPos = Object.keys(terminal.posMap)[0];
+            if (!(terminalPos in node.posMap)) continue;
+            node.terminalIds.push(terminal.elementId);
+        }        
     }
+
+    // created element rendering
+    sub_renderCreatedElements(prjManager,elements)    
+
+    sub_modifyLine(prjManager,'lineCreateNormal',[]);
+    sub_modifyLine(prjManager,'lineRelevant',[]);
+    sub_modifyLine(prjManager,'markerRelevant',[]);
+    sub_modifyLine(prjManager,'lineSelect',[]);
+    sub_modifyLine(prjManager,'markerSelect',[]);
+    sub_modifyLine(prjManager,'lineHover',[]);
+    sub_modifyLine(prjManager,'markerHover',[]);
+
+    
+
+
+}
+
+function copyElement(event,prjManager) {
+
+    if (prjManager.uiStatus.selectedIdList.length === 0) return;
+    
+    // filter Id List    
+    let validSelectedIdList = sub_filterValidIdList(prjManager);
     if (validSelectedIdList.length === 0) return;
 
     // copy elements and update ids
@@ -547,8 +488,6 @@ function copyElement(event,prjManager) {
             element.offsetPosition = sub_XY2pos(offsetXY);
         }
     }
-
-    console.log('prj',prjManager)
 }
 
 function pasteElement(event,prjManager) {
@@ -583,6 +522,13 @@ function resetMode(event,prjManager) {
     prjManager.resetTempData();
     sub_modifyLine(prjManager,'lineCreateNormal',[]);
     sub_modifyLine(prjManager,'lineRelevant',[]);
+    sub_modifyLine(prjManager,'markerRelevant',[]);
+    sub_modifyLine(prjManager,'lineSelect',[]);
+    sub_modifyLine(prjManager,'markerSelect',[]);
+    sub_modifyLine(prjManager,'lineHover',[]);
+    sub_modifyLine(prjManager,'markerHover',[]);
+
+    console.log(prjManager)
 }
 
 function canvasResize(_, prjManager) {

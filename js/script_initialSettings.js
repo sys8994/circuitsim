@@ -76,7 +76,7 @@ const prjManager = {
                     else if (event.key === 'v') { pasteElement(event,prjManager) } 
                     else if (event.key === 's') { saveProject(event,prjManager) } 
                 }
-                else if (event.key === 'delete') { deleteElement(event,prjManager) }
+                else if (event.key === 'Delete') { deleteElement(event,prjManager) }
                 else if (['1','2','3','4','5','6','7','8','9','0','t'].includes(event.key)) { selectElement(event, prjManager) } // element selection
                 else if (['F1','F2','F3','F4'].includes(event.key)) { selectOption(event, prjManager) } // element selection
                 else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) { canvasMove(event, prjManager) } // element selection
